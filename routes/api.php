@@ -101,13 +101,14 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
 Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
     Route::get('/mikrotik/get-profile-user', [AuthController::class, 'getUserByToken']);
     Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer1']);
-    Route::post('/configure-masquarade', [OpenVPNController::class, 'addMasqueradeRule']);
+
 });
 
 
 
 Route::post('/configure-nat', [OpenVPNController::class, 'configureNat']);
 
+Route::post('/configure-masquarade', [OpenVPNController::class, 'addNatMasqueradeFromCommand']);
 
 Route::post('/mikrotik/OpenVPN', [OpenVPNController::class, 'createOpenVpnClient1']);
 Route::post('/mikrotik/OpenVPNServer', [OpenVPNController::class, 'configureVpnServer']);
