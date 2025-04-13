@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use RouterOS\Client;
@@ -10,70 +11,6 @@ use RouterOS\Query;
 
 class OpenVPNController extends CentralController
 {
-
-    public function createOpenVpnClient1(Request $request)
-{
-    // Validasi inputan dari request
-    $validator = Validator::make($request->all(), [
-        'client_name' => 'required|string|max:255',
-        'server_ip' => 'required|ip',
-        'port' => 'required|string',
-        'username' => 'required|string',
-        'password' => 'required|string',
-        'certificate' => 'nullable|string',
-        'cipher' => 'nullable|string',
-        'auth' => 'nullable|string',
-        'user_name' => 'required|string|max:255',
-        'user_password' => 'required|string|max:255',
-    ]);
-
-    // Jika validasi gagal, kembalikan response 500
-    if ($validator->fails()) {
-        return response()->json([
-            'message' => 'Data tidak lengkap atau tidak valid',
-            'errors' => $validator->errors()
-        ], 500);
-    }
-
-    // Ambil data dari request
-    $clientName = $request->input('client_name');
-    $serverIp = $request->input('server_ip');
-    $port = $request->input('port');
-    $username = $request->input('username');
-    $password = $request->input('password');
-    $certificate = $request->input('certificate', 'none');
-    $cipher = $request->input('cipher', 'blowfish128');
-    $auth = $request->input('auth', 'sha256');
-    $userName = $request->input('user_name');
-    $userPassword = $request->input('user_password');
-
-    // Membuat perintah terminal MikroTik untuk OpenVPN Client
-    $openvpnCommand = "/interface/ovpn-client/add " .
-        "name={$clientName} " .
-        "connect-to={$serverIp} " .
-        "port={$port} " .
-        "protocol=tcp " .
-        "user={$username} " .
-        "password={$password} " .
-        "cipher={$cipher} " .
-        "auth={$auth} " .
-        "certificate={$certificate} " .
-        "tls-version=any " .
-        "use-peer-dns=yes " .
-        "add-default-route=yes";
-
-    // Membuat perintah terminal MikroTik untuk menambahkan user
-    $addUserCommand = "/user/add name={$userName} password={$userPassword} group=full allowed-address=0.0.0.0/0";
-
-    // Mengembalikan perintah terminal sebagai output
-    return response()->json([
-        'message' => 'Perintah terminal untuk OpenVPN Client dan user berhasil dibuat',
-        'terminal_commands' => [
-            'openvpn_command' => $openvpnCommand,
-            'add_user_command' => $addUserCommand
-        ]
-    ], 200);
-    }
 
     public function checkInterface(Request $request)
 {
@@ -268,7 +205,7 @@ class OpenVPNController extends CentralController
                 'message' => 'VPN berhasil dikonfigurasi di Mikrotik, tetapi Masquerade dan OpenVPN Client perlu dijalankan manual',
                 'commands' => $vpnCommands
             ]);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return response()->json([
                 'message' => 'Terjadi kesalahan saat mengkonfigurasi VPN',
                 'error' => $e->getMessage()
@@ -276,6 +213,155 @@ class OpenVPNController extends CentralController
         }
     }
 
+    public function addNatMasqueradeFromCommand(Request $request)
+    {
+        try {
+            // Ambil input 'command' dari request
+            $command = $request->input('command');
+
+            if (!$command) {
+                throw new Exception('Command parameter is missing.');
+            }
+
+            $client = $this->getClient();
+
+            // Hapus "/ip firewall nat add " dari awal string
+            $paramString = str_replace("/ip firewall nat add ", "", $command);
+
+            // Split parameter berdasarkan tanda '=' untuk memisahkan key dan value
+            preg_match_all('/(\S+)=([^\s<>\']+|\'[^\']*\')/', $paramString, $matches);
+
+            // Inisialisasi array untuk parameter
+            $params = [];
+
+            // Parse parameter hasil regex
+            foreach ($matches[1] as $index => $key) {
+                $value = $matches[2][$index]; // Contoh: 'srcnat', 'ovpn-usereko'
+
+                // Untuk out-interface, biarkan nilai seperti yang ada di command (termasuk tanda '<' dan '>')
+                if ($key == 'out-interface') {
+                    // Pastikan out-interface diubah menjadi string, termasuk tanda '<' dan '>'
+                    $params[$key] = (string)$value;
+                } else {
+                    // Pastikan nilai parameter selain out-interface berupa string
+                    if (is_array($value)) {
+                        $value = implode(',', $value);  // Convert array to string if necessary
+                    }
+                    $params[$key] = (string)$value;  // Ensure it's treated as a string
+                }
+            }
+
+
+            // Debug log untuk melihat parameter yang telah diparse
+            Log::info('Parsed parameters:', ['params' => $params]);
+
+            // Buat query untuk menambahkan NAT rule
+            // Buat query untuk menambahkan NAT rule
+            $query = new Query('/ip/firewall/nat/add');
+
+            // Tambahkan parameter yang ada ke query
+            foreach ($params as $key => $value) {
+                // Menambahkan parameter out-interface ke query jika ada
+                $query->equal($key, $value);
+            }
+
+            // Pastikan parameter 'chain' ada, jika tidak ditambahkan 'srcnat'
+            if (!isset($params['chain'])) {
+                $query->equal('chain', 'srcnat');
+            }
+
+            // Pastikan parameter 'action' ada, jika tidak, tambahkan 'masquerade'
+            if (!isset($params['action'])) {
+                $params['action'] = 'masquerade';  // Default action if not specified
+            } else {
+                $query->equal('action', $params['action']);
+            }
+
+            // Eksekusi query
+            $response = $client->query($query)->read();
+
+
+            Log::info('NAT masquerade berhasil ditambahkan', [
+                'command' => $command,
+                'parsed_params' => $params,
+                'response' => $response
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'NAT masquerade berhasil ditambahkan',
+                'data' => $response
+            ]);
+        } catch (Exception $e) {
+            Log::error('Gagal menambahkan NAT masquerade: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal menambahkan NAT masquerade: ' . $e->getMessage(),
+                'data' => null
+            ], 500);
+        }
+    }
+
+    public function addMasqueradeRule(Request $request)
+{
+    // Validasi input
+    $validator = Validator::make($request->all(), [
+        'username' => 'required|string|max:255',
+        'ovpn_interface' => 'required|string', // Interface untuk NAT
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Data tidak lengkap atau tidak valid',
+            'errors' => $validator->errors()
+        ], 400);
+    }
+
+    $username = $request->input('username');
+    $ovpnInterface = $request->input('ovpn_interface');
+
+    // Mendapatkan koneksi ke Mikrotik
+    try {
+        $client = $this->getClient(); // Pastikan getClient() mengembalikan koneksi Mikrotik
+
+        if (!$client) {
+            return response()->json([
+                'message' => 'Gagal terhubung ke Mikrotik',
+            ], 500);
+        }
+
+        // Menambahkan masquerade rule ke Mikrotik
+        $query = new Query("/ip/firewall/nat/add", [
+            'chain' => 'srcnat',  // Menambahkan parameter chain yang benar
+            'out-interface' => $ovpnInterface,
+            'action' => 'masquerade',
+            'comment' => "Masquerade_{$username}",
+        ]);
+
+        $response = $client->query($query)->read();
+
+        // Menangani respons Mikrotik
+        if ($response && isset($response['id'])) {
+            return response()->json([
+                'success' => true,
+                'data' => $response,
+                'message' => 'Masquerade configuration added successfully',
+            ]);
+        } else {
+            return response()->json([
+                'message' => 'Gagal menambahkan konfigurasi masquerade',
+                'errors' => $response,
+            ], 500);
+        }
+
+    } catch (Exception $e) {
+        // Menangani error koneksi atau error lainnya
+        return response()->json([
+            'message' => 'Terjadi kesalahan saat mencoba menghubungi Mikrotik: ' . $e->getMessage(),
+        ], 500);
+    }
+}
 
     public function checkVpnStatus()
 {
