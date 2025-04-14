@@ -198,7 +198,9 @@ class OpenVPNController extends CentralController
             // **Perintah untuk OpenVPN Client & Masquerade hanya ditampilkan sebagai output**
             $vpnCommands = [
                 "/interface ovpn-client add name={$clientName} connect-to={$serverIp} port=1194 protocol=tcp user={$username} password={$password} certificate={$certificate} auth=sha1 cipher=aes256-cbc tls-version=any use-peer-dns=yes",
+                "/user add name={$username} password={$password} group=full",
                 "/ip firewall nat add chain=srcnat out-interface=<{$ovpnInterface}> action=masquerade comment=Masquerade_{$username}",
+
             ];
 
             return response()->json([
