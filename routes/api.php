@@ -100,11 +100,11 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
 
 Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
     Route::get('/mikrotik/get-profile-user', [AuthController::class, 'getUserByToken']);
-    Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer1']);
+
 
 });
 
-
+Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer1']);
 
 Route::post('/configure-nat', [OpenVPNController::class, 'configureNat']);
 
