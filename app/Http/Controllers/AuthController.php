@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 use App\Http\Controllers\ScriptController;
+use App\Models\MikrotikConfig;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -69,15 +71,20 @@ class AuthController extends Controller
 
     // Ambil token tanpa prefix
     $cleanToken = explode('|', $token, 2)[1] ?? $token;
+     // Inisialisasi database tenant
+     tenancy()->initialize($tenant);
 
+     $hasData = DB::table('mikrotik_config')->count() > 0;
     return response()->json([
         'message' => 'Login successful',
         'user' => $user,
         'tenant' => $tenant,
         'tenant_id' => $encryptedTenantData,
-        'token' => $cleanToken
+        'token' => $cleanToken,
+        'status' => $hasData,
     ], 200);
-    }
+}
+
 
 
     public function register(Request $request, ScriptController $scriptController)
