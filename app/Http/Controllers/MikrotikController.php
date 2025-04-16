@@ -50,7 +50,6 @@ class MikrotikController extends CentralController
         ];
     }
 
-
     public function getHotspotUserByPhoneNumber($no_hp)
 {
     try {
@@ -160,7 +159,7 @@ class MikrotikController extends CentralController
     $name = $request->input('name', null);
 
     try {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
         $existingUsers = $client->query($checkQuery)->read();
@@ -327,73 +326,55 @@ class MikrotikController extends CentralController
     }
 
     public function editHotspotUser(Request $request, $no_hp)
-    {
-        // Validasi input
-        $request->validate([
-            'name' => 'sometimes|required|string|max:255',
-            'profile' => 'nullable|string|max:50',
-            'comment' => 'sometimes|required|string|max:255',
-            'disabled' => 'sometimes|required|string',
-        ]);
+{
+    // Validasi input
+    $request->validate([
+        'name' => 'sometimes|required|string|max:255',
+        'profile' => 'nullable|string|max:50',
+        'comment' => 'sometimes|required|string|max:255',
+    ]);
 
-        try {
+    try {
+        $client = $this->getClientLogin();
 
-         $client = $this->getClient();
+        $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
+        $existingUsers = $client->query($checkQuery)->read();
 
-            $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
-            $existingUsers = $client->query($checkQuery)->read();
-
-            if (empty($existingUsers)) {
-                return response()->json(['message' => 'User tidak ditemukan.'], 404);
-            }
-
-            $userId = $existingUsers[0]['.id'];
-
-            $updateUserQuery = (new Query('/ip/hotspot/user/set'))
-                ->equal('.id', $userId);
-
-            if ($request->has('name')) {
-                $updateUserQuery->equal('name', $request->input('name'));
-            }
-
-            if ($request->has('profile')) {
-                $updateUserQuery->equal('profile', $request->input('profile'));
-            }
-
-            if ($request->has('comment')) {
-                $updateUserQuery->equal('comment', $request->input('comment'));
-            }
-
-            if ($request->has('disabled')) {
-                $disabledInput = $request->input('disabled');
-
-                if ($disabledInput === 'true') {
-                    $disabledValue = 'true';
-                } elseif ($disabledInput === 'false') {
-                    $disabledValue = 'false';
-                } else {
-                    return response()->json(['error' => 'Invalid value for disabled field.'], 400);
-                }
-
-                $updateUserQuery->equal('disabled', $disabledValue);
-            }
-
-            $client->query($updateUserQuery)->read();
-
-            // Panggil fungsi dari controller lain setelah user diperbarui
-            // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-            // $hotspotController->getHotspotUsers1();
-            return response()->json(['message' => 'User berhasil diperbarui.'], 200);
-
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        if (empty($existingUsers)) {
+            return response()->json(['message' => 'User tidak ditemukan.'], 404);
         }
+
+        $userId = $existingUsers[0]['.id'];
+
+        $updateUserQuery = (new Query('/ip/hotspot/user/set'))
+            ->equal('.id', $userId);
+
+        if ($request->has('name')) {
+            $updateUserQuery->equal('name', $request->input('name'));
+        }
+
+        if ($request->has('profile')) {
+            $updateUserQuery->equal('profile', $request->input('profile'));
+        }
+
+        if ($request->has('comment')) {
+            $updateUserQuery->equal('comment', $request->input('comment'));
+        }
+
+        $client->query($updateUserQuery)->read();
+
+        return response()->json(['message' => 'User berhasil diperbarui.'], 200);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
+}
+
 
     public function updateAllHotspotUsersByPhoneNumber()
 {
     try {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
 
         $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
         $activeUsers = $client->query($getActiveUsersQuery)->read();
@@ -477,7 +458,7 @@ class MikrotikController extends CentralController
 
         if ($lock->get()) {
             try {
-         $client = $this->getClient();
+         $client = $this->getClientLogin();
                 $query = new Query('/ip/hotspot/user/print');
                 $users = $client->query($query)->read();
 

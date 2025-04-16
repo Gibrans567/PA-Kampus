@@ -94,6 +94,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::get('/mikrotik/get-data-users', [ByteController::class, 'getHotspotUsers']);
     Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
 
+    Route::get('/mikrotik/get-info', [ScriptController::class, 'getSystemInfo']);
 
     Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkInterface']);
 });

@@ -56,4 +56,28 @@ class ScriptController extends CentralController
         return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
 }
+
+public function getSystemInfo()
+{
+    try {
+        $client = $this->getClientLogin();
+
+        // TEST: Mulai dari resource dulu
+        $resourceData = $client->query(new Query('/system/resource/print'))->read();
+
+        if (empty($resourceData)) {
+            return response()->json(['error' => 'Resource data kosong!'], 500);
+        }
+
+        return response()->json([
+            'resource_raw' => $resourceData
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+    }
+}
+
+
+
+
 }
