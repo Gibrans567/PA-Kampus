@@ -48,7 +48,7 @@ class OpenVPNController extends CentralController
     }
     }
 
-    public function configureVpnServer1(Request $request)
+    public function configureVpnServer(Request $request)
 {
     $validator = Validator::make($request->all(), [
         'username' => 'required|string|max:255',
@@ -294,21 +294,6 @@ class OpenVPNController extends CentralController
                 'data' => null
             ];
         }
-    }
-
-    public function checkVpnStatus()
-{
-    $client = new Client([
-        'host' => '192.168.88.1', // Ganti dengan IP MikroTik
-        'user' => 'admin',
-        'pass' => 'password',
-        'port' => 8728, // API port MikroTik
-    ]);
-
-    $query = new Query('/interface ovpn-server server print');
-    $response = $client->query($query)->read();
-
-    return response()->json($response);
     }
 
 }

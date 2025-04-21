@@ -43,7 +43,7 @@ Route::get('/mikrotik/get-all-menu', [MenuController::class, 'getAllMenus']);
 Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 
 Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
-
+Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
 
 Route::get('/mikrotik/Router-info', [TerminalController::class, 'getRouterInfo']);
 Route::post('/mikrotik/terminal-mikrotik', [TerminalController::class, 'executeMikrotikCommand']);
@@ -68,7 +68,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
 
     Route::post('/logout', [AuthController::class, 'logout']);
 
-    Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
+
     Route::get('/mikrotik/get-profile/{profile_name}', [HotspotProfileController::class, 'getHotspotProfileByName']);
     Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'updateHotspotProfile']);
     Route::post('/mikrotik/set-profile', [HotspotProfileController::class, 'setHotspotProfile']);
@@ -105,7 +105,7 @@ Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
 
 });
 
-Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer1']);
+Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer']);
 
 Route::post('/configure-nat', [OpenVPNController::class, 'configureNat']);
 

@@ -63,7 +63,9 @@ class HotspotProfileController extends CentralController
             $addQuery = (new Query('/ip/hotspot/user/profile/add'))
                 ->equal('name', $profile_name)
                 ->equal('shared-users', $shared_users)
-                ->equal('keepalive-timeout', 'none');
+                ->equal('keepalive-timeout', '1m')
+                ->equal('idle-timeout', '10s');
+
 
 
             if (!empty($rate_limit)) {
@@ -93,7 +95,7 @@ class HotspotProfileController extends CentralController
     public function getHotspotProfile(Request $request)
 {
     try {
-        $client = $this->getClientLogin();
+        $client = $this->getClient();
         $query = new Query('/ip/hotspot/user/profile/print');
         $profiles = $client->query($query)->read();
 
