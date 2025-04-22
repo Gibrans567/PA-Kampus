@@ -105,7 +105,10 @@ class ScriptController extends CentralController
             'cpuLoad' => $resourceData[0]['cpu-load'] ?? 'Unknown CPU Load', // Menggunakan cpu-load dari data raw
             'time' => $currentTime,  // Menggunakan waktu yang diambil dari build-time
             'date' => $currentDate,  // Menggunakan tanggal yang diambil dari build-time
-            'usedMemory' => $resourceData[0]['free-memory'] ?? 'Unknown Used Memory', // Gunakan free-memory atau lainnya sesuai kebutuhan
+            'freeMemory' => $resourceData[0]['free-memory'] ?? 'Unknown Used Memory', // Gunakan free-memory atau lainnya sesuai kebutuhan
+            'usedMemory' => isset($resourceData[0]['total-memory'], $resourceData[0]['free-memory'])
+                   ? strval($resourceData[0]['total-memory'] - $resourceData[0]['free-memory'])
+                   : 'Unknown Used Memory',  // Menghitung used memory dan mengubahnya menjadi stringUpd
             'freeHdd' => $resourceData[0]['free-hdd-space'] ?? 'Unknown Free HDD', // Mengambil free-hdd
             'totalHdd' => $resourceData[0]['total-hdd-space'] ?? 'Unknown Total HDD', // Mengambil total-hdd
             'totalMemory' => $resourceData[0]['total-memory'] ?? 'Unknown Total Memory',
