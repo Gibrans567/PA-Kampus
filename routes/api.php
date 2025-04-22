@@ -97,13 +97,15 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::get('/mikrotik/get-info', [ScriptController::class, 'getSystemInfo']);
 
     Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkInterface']);
+
+    Route::post('/add-bandwidth-manager', [ScriptController::class, 'addBandwidthManager']);
 });
 
 Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
     Route::get('/mikrotik/get-profile-user', [AuthController::class, 'getUserByToken']);
-
-
 });
+
+
 
 Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer']);
 

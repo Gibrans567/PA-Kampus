@@ -55,29 +55,152 @@ class ScriptController extends CentralController
     } catch (ConfigException | ClientException | QueryException $e) {
         return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
-}
+    }
 
-public function getSystemInfo()
+    public function getSystemInfo()
 {
     try {
         $client = $this->getClientLogin();
 
-        // TEST: Mulai dari resource dulu
+        // Mengambil data resource dari perangkat MikroTik
         $resourceData = $client->query(new Query('/system/resource/print'))->read();
 
         if (empty($resourceData)) {
             return response()->json(['error' => 'Resource data kosong!'], 500);
         }
 
-        return response()->json([
-            'resource_raw' => $resourceData
-        ]);
+        // Mendapatkan build-time dari data yang diambil
+        $buildTime = $resourceData[0]['build-time'] ?? 'Unknown Build Time';
+
+        // Menggunakan DateTime untuk memformat build-time
+        $dateTime = new \DateTime($buildTime);
+        $currentTime = $dateTime->format('H:i:s');  // Mengambil waktu (jam:menit:detik)
+        $currentDate = $dateTime->format('Y-m-d');  // Mengambil tanggal (tahun-bulan-hari)
+
+        // Menyusun response data sesuai dengan format yang diinginkan
+        $response = [
+            'model' => $resourceData[0]['board-name'] ?? 'Unknown Model', // Menggunakan board-name untuk model
+            'rosVersion' => $resourceData[0]['version'] ?? 'Unknown ROS Version',
+            'cpuLoad' => $resourceData[0]['cpu-load'] ?? 'Unknown CPU Load', // Menggunakan cpu-load dari data raw
+            'currentTime' => $currentTime,  // Menggunakan waktu yang diambil dari build-time
+            'currentDate' => $currentDate,  // Menggunakan tanggal yang diambil dari build-time
+            'usedMemory' => $resourceData[0]['free-memory'] ?? 'Unknown Used Memory', // Gunakan free-memory atau lainnya sesuai kebutuhan
+            'freeMemory' => $resourceData[0]['free-memory'] ?? 'Unknown Free Memory',
+            'totalMemory' => $resourceData[0]['total-memory'] ?? 'Unknown Total Memory',
+            'upTime' => $resourceData[0]['uptime'] ?? 'Unknown UpTime'
+        ];
+
+        return response()->json($response);
+
     } catch (\Exception $e) {
         return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
 }
 
 
+    public function addBandwidthManager(Request $request)
+    {
+        try {
+            $client = $this->getClientLogin();
+            $results = [];
 
+            // Step 1: Create queue types
+            $downloadQueueQuery = new Query('/queue/type/add');
+            $downloadQueueQuery->equal('name', 'download');
+            $downloadQueueQuery->equal('kind', 'pcq');
+            $downloadQueueQuery->equal('pcq-rate', '50M');
+            $downloadQueueQuery->equal('pcq-classifier', 'dst-address');
+            $downloadQueueQuery->equal('pcq-limit', '50KiB');
+            $downloadQueueQuery->equal('pcq-total-limit', '2000KiB');
+            $downloadQueueQuery->equal('pcq-src-address-mask', '32');
+            $downloadQueueQuery->equal('pcq-dst-address-mask', '32');
+            $downloadQueueQuery->equal('pcq-src-address6-mask', '128');
+            $downloadQueueQuery->equal('pcq-dst-address6-mask', '128');
 
+            $uploadQueueQuery = new Query('/queue/type/add');
+            $uploadQueueQuery->equal('name', 'upload');
+            $uploadQueueQuery->equal('kind', 'pcq');
+            $uploadQueueQuery->equal('pcq-rate', '25M');
+            $uploadQueueQuery->equal('pcq-classifier', 'src-address');
+            $uploadQueueQuery->equal('pcq-limit', '50KiB');
+            $uploadQueueQuery->equal('pcq-total-limit', '2000KiB');
+            $uploadQueueQuery->equal('pcq-src-address-mask', '32');
+            $uploadQueueQuery->equal('pcq-dst-address-mask', '32');
+            $uploadQueueQuery->equal('pcq-src-address6-mask', '128');
+            $uploadQueueQuery->equal('pcq-dst-address6-mask', '128');
+
+            // Execute queue type queries
+            $results['queue_download'] = $client->query($downloadQueueQuery)->read();
+            $results['queue_upload'] = $client->query($uploadQueueQuery)->read();
+
+            // Step 2: Add mangle rules based on the screenshots
+
+            // Mark connection rule
+            $connectionMarkQuery = new Query('/ip/firewall/mangle/add');
+            $connectionMarkQuery->equal('chain', 'prerouting');
+            $connectionMarkQuery->equal('action', 'mark-connection');
+            $connectionMarkQuery->equal('new-connection-mark', 'WAN_conn');
+            $connectionMarkQuery->equal('in-interface', 'ether1');
+            $connectionMarkQuery->equal('comment', 'Mark WAN connections');
+            $results['mangle_connection_mark'] = $client->query($connectionMarkQuery)->read();
+
+            // Mark download traffic rule (as shown in your screenshots)
+            $downloadMarkQuery = new Query('/ip/firewall/mangle/add');
+            $downloadMarkQuery->equal('chain', 'forward');
+            $downloadMarkQuery->equal('connection-mark', 'WAN_conn');
+            $downloadMarkQuery->equal('action', 'mark-packet');
+            $downloadMarkQuery->equal('new-packet-mark', 'download-traffic');
+            $downloadMarkQuery->equal('in-interface', 'ether1');
+            $downloadMarkQuery->equal('passthrough', 'yes');
+            $downloadMarkQuery->equal('comment', 'Mark download traffic');
+            $results['mangle_download_mark'] = $client->query($downloadMarkQuery)->read();
+
+            // Mark upload traffic rule
+            $uploadMarkQuery = new Query('/ip/firewall/mangle/add');
+            $uploadMarkQuery->equal('chain', 'forward');
+            $uploadMarkQuery->equal('connection-mark', 'WAN_conn');
+            $uploadMarkQuery->equal('action', 'mark-packet');
+            $uploadMarkQuery->equal('new-packet-mark', 'upload-traffic');
+            $uploadMarkQuery->equal('out-interface', 'ether1');
+            $uploadMarkQuery->equal('passthrough', 'yes');
+            $uploadMarkQuery->equal('comment', 'Mark upload traffic');
+            $results['mangle_upload_mark'] = $client->query($uploadMarkQuery)->read();
+
+            // Step 3: Create queue tree
+            $totalBandwidthQuery = new Query('/queue/tree/add');
+            $totalBandwidthQuery->equal('name', 'Total-Bandwidth');
+            $totalBandwidthQuery->equal('parent', 'global');
+            $totalBandwidthQuery->equal('max-limit', '50M');
+            $totalBandwidthQuery->equal('comment', 'Total bandwidth limit');
+            $results['queue_tree_total'] = $client->query($totalBandwidthQuery)->read();
+
+            $downloadTreeQuery = new Query('/queue/tree/add');
+            $downloadTreeQuery->equal('name', 'Download');
+            $downloadTreeQuery->equal('parent', 'Total-Bandwidth');
+            $downloadTreeQuery->equal('packet-mark', 'download-traffic');
+            $downloadTreeQuery->equal('queue', 'download');
+            $downloadTreeQuery->equal('max-limit', '50M');
+            $downloadTreeQuery->equal('comment', 'All download traffic');
+            $results['queue_tree_download'] = $client->query($downloadTreeQuery)->read();
+
+            $uploadTreeQuery = new Query('/queue/tree/add');
+            $uploadTreeQuery->equal('name', 'Upload');
+            $uploadTreeQuery->equal('parent', 'Total-Bandwidth');
+            $uploadTreeQuery->equal('packet-mark', 'upload-traffic');
+            $uploadTreeQuery->equal('queue', 'upload');
+            $uploadTreeQuery->equal('max-limit', '25M');
+            $uploadTreeQuery->equal('comment', 'All upload traffic');
+            $results['queue_tree_upload'] = $client->query($uploadTreeQuery)->read();
+
+            return response()->json([
+                'message' => 'Bandwidth manager configuration berhasil ditambahkan',
+                'results' => $results
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+        }
+    }
 }
+
+
+
