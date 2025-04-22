@@ -86,15 +86,22 @@ class ByteController extends CentralController
         // Get the client for login (Mikrotik)
         $client = $this->getClientLogin();
 
-        // Query to find user by phone number
+        // Query to find user by phone number in Mikrotik
         $query = new Query('/ip/hotspot/user/print');
         $query->where('name', $no_hp);
 
-        // Fetch the user data
+        // Fetch the user data from MikroTik
         $users = $client->query($query)->read();
 
         if (empty($users)) {
-            return response()->json(['message' => 'User not found'], 404);
+            // User not found in Mikrotik but may still exist in the database
+            $deletedFromDB = DB::table('voucher_lists')->where('name', $no_hp)->delete();
+
+            if ($deletedFromDB) {
+                return response()->json(['message' => 'User not found in Mikrotik, but deleted from database.']);
+            } else {
+                return response()->json(['message' => 'User not found in both MikroTik and database.'], 404);
+            }
         }
 
         $user = $users[0];
@@ -114,7 +121,7 @@ class ByteController extends CentralController
             $client->query($terminateSessionQuery)->read();
         }
 
-        // Delete the hotspot user from Mikrotik
+        // Delete the hotspot user from MikroTik
         $deleteQuery = (new Query('/ip/hotspot/user/remove'))->equal('.id', $user['.id']);
         $client->query($deleteQuery)->read();
 
@@ -122,10 +129,12 @@ class ByteController extends CentralController
         DB::table('voucher_lists')->where('name', $no_hp)->delete();
 
         return response()->json(['message' => 'Hotspot user deleted successfully']);
+
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
+
 
 
     public function getHotspotProfile(Request $request)

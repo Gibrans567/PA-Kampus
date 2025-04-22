@@ -57,6 +57,26 @@ class ScriptController extends CentralController
     }
     }
 
+    public function getSystemInfo1()
+    {
+        try {
+            $client = $this->getClientLogin();
+
+            // TEST: Mulai dari resource dulu
+            $resourceData = $client->query(new Query('/system/resource/print'))->read();
+
+            if (empty($resourceData)) {
+                return response()->json(['error' => 'Resource data kosong!'], 500);
+            }
+
+            return response()->json([
+                'resource_raw' => $resourceData
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+        }
+    }
+
     public function getSystemInfo()
 {
     try {
@@ -83,10 +103,11 @@ class ScriptController extends CentralController
             'model' => $resourceData[0]['board-name'] ?? 'Unknown Model', // Menggunakan board-name untuk model
             'rosVersion' => $resourceData[0]['version'] ?? 'Unknown ROS Version',
             'cpuLoad' => $resourceData[0]['cpu-load'] ?? 'Unknown CPU Load', // Menggunakan cpu-load dari data raw
-            'currentTime' => $currentTime,  // Menggunakan waktu yang diambil dari build-time
-            'currentDate' => $currentDate,  // Menggunakan tanggal yang diambil dari build-time
+            'time' => $currentTime,  // Menggunakan waktu yang diambil dari build-time
+            'date' => $currentDate,  // Menggunakan tanggal yang diambil dari build-time
             'usedMemory' => $resourceData[0]['free-memory'] ?? 'Unknown Used Memory', // Gunakan free-memory atau lainnya sesuai kebutuhan
-            'freeMemory' => $resourceData[0]['free-memory'] ?? 'Unknown Free Memory',
+            'freeHdd' => $resourceData[0]['free-hdd-space'] ?? 'Unknown Free HDD', // Mengambil free-hdd
+            'totalHdd' => $resourceData[0]['total-hdd-space'] ?? 'Unknown Total HDD', // Mengambil total-hdd
             'totalMemory' => $resourceData[0]['total-memory'] ?? 'Unknown Total Memory',
             'upTime' => $resourceData[0]['uptime'] ?? 'Unknown UpTime'
         ];
