@@ -83,11 +83,14 @@ class ByteController extends CentralController
 {
     try {
 
-          $client = $this->getClientLogin();
+        // Get the client for login (Mikrotik)
+        $client = $this->getClientLogin();
 
+        // Query to find user by phone number
         $query = new Query('/ip/hotspot/user/print');
         $query->where('name', $no_hp);
 
+        // Fetch the user data
         $users = $client->query($query)->read();
 
         if (empty($users)) {
@@ -96,11 +99,14 @@ class ByteController extends CentralController
 
         $user = $users[0];
 
+        // Query for active sessions associated with the user
         $activeSessionsQuery = (new Query('/ip/hotspot/active/print'))
             ->where('user', $user['name']);
 
+        // Fetch active sessions for the user
         $activeSessions = $client->query($activeSessionsQuery)->read();
 
+        // Terminate all active sessions for the user
         foreach ($activeSessions as $session) {
             $terminateSessionQuery = (new Query('/ip/hotspot/active/remove'))
                 ->equal('.id', $session['.id']);
@@ -108,21 +114,19 @@ class ByteController extends CentralController
             $client->query($terminateSessionQuery)->read();
         }
 
+        // Delete the hotspot user from Mikrotik
         $deleteQuery = (new Query('/ip/hotspot/user/remove'))->equal('.id', $user['.id']);
         $client->query($deleteQuery)->read();
 
-        if (in_array($user['profile'], ['Owner', 'staff'])) {
-            AkunKantor::where('no_hp', $no_hp)->delete();
-        }
-
-        // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-        // $hotspotController->getHotspotUsers1();
+        // Delete the associated records from the voucher_lists table by matching no_hp/username
+        DB::table('voucher_lists')->where('name', $no_hp)->delete();
 
         return response()->json(['message' => 'Hotspot user deleted successfully']);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
     public function getHotspotProfile(Request $request)
 {

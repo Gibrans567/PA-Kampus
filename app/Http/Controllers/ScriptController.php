@@ -118,8 +118,6 @@ class ScriptController extends CentralController
         return new \DateTime(); // Mengembalikan waktu saat ini jika parsing gagal
     }
 
-
-
     public function addBandwidthManager(Request $request)
     {
         try {

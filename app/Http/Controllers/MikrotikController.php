@@ -351,6 +351,7 @@ class MikrotikController extends CentralController
 
         if ($request->has('name')) {
             $updateUserQuery->equal('name', $request->input('name'));
+            $updateUserQuery->equal('password', $request->input('name'));
         }
 
         if ($request->has('profile')) {
@@ -363,13 +364,18 @@ class MikrotikController extends CentralController
 
         $client->query($updateUserQuery)->read();
 
+        DB::table('voucher_lists')->where('name', $no_hp)
+                ->update([
+                    'name' => $request->input( 'name'),    // Update name in the database
+                    'password' => $request->input( 'name'),  // Update profile in the database
+                ]);
+
         return response()->json(['message' => 'User berhasil diperbarui.'], 200);
 
     } catch (\Exception $e) {
         return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
-}
-
+    }
 
     public function updateAllHotspotUsersByPhoneNumber()
 {
