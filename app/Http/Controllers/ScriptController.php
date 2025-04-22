@@ -72,8 +72,9 @@ class ScriptController extends CentralController
         // Mendapatkan build-time dari data yang diambil
         $buildTime = $resourceData[0]['build-time'] ?? 'Unknown Build Time';
 
-        // Menggunakan DateTime untuk memformat build-time
-        $dateTime = new \DateTime($buildTime);
+        // Coba mem-parsing build-time dengan beberapa format
+        $dateTime = $this->parseBuildTime($buildTime);
+
         $currentTime = $dateTime->format('H:i:s');  // Mengambil waktu (jam:menit:detik)
         $currentDate = $dateTime->format('Y-m-d');  // Mengambil tanggal (tahun-bulan-hari)
 
@@ -95,7 +96,28 @@ class ScriptController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
-}
+    }
+
+    private function parseBuildTime($buildTime)
+    {
+        // Coba format pertama: "Nov/17/2023 11:38:45"
+        $formats = [
+            'M/d/Y H:i:s',   // Format seperti "Nov/17/2023 11:38:45"
+            'Y-m-d H:i:s',   // Format standar: "2025-01-16 08:19:28"
+            'd/m/Y H:i:s',   // Format lain: "16/01/2025 08:19:28"
+        ];
+
+        foreach ($formats as $format) {
+            $dateTime = \DateTime::createFromFormat($format, $buildTime);
+            if ($dateTime !== false) {
+                return $dateTime; // Jika parsing berhasil, kembalikan objek DateTime
+            }
+        }
+
+        // Jika tidak ada format yang cocok, kembalikan DateTime dengan waktu saat ini
+        return new \DateTime(); // Mengembalikan waktu saat ini jika parsing gagal
+    }
+
 
 
     public function addBandwidthManager(Request $request)
