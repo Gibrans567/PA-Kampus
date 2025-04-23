@@ -76,7 +76,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::delete('/mikrotik/delete-profile/{profile_name}', [HotspotProfileController::class, 'deleteHotspotProfile']);
     Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
 
-    Route::get('/mikrotik/Dhcp-info', [DHCPController::class, 'getDhcpServers']);
+    
     Route::get('/mikrotik/Dhcp-info/{name}', [DHCPController::class, 'getDhcpServerByName']);
     Route::get('/mikrotik/Network-info', [DHCPController::class, 'getNetworks']);
     Route::get('/mikrotik/Network-info/{gateaway}', [DHCPController::class, 'getNetworksByGateway']);
@@ -101,6 +101,11 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkInterface']);
 
     Route::post('/add-bandwidth-manager', [ScriptController::class, 'addBandwidthManager']);
+    Route::get('/get-bandwidth-manager', [ScriptController::class, 'getBandwidthManager']);
+    Route::post('/bandwidth-manager/edit/{name}', [ScriptController::class, 'editBandwidthManager']);
+    Route::delete('/bandwidth-manager/delete/{name}', [ScriptController::class, 'deleteBandwidthManager']);
+
+
 });
 
 Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {

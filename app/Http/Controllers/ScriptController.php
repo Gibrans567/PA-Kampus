@@ -133,8 +133,27 @@ class ScriptController extends CentralController
         $pcqRateUpload = $request->input('pcq_rate_upload', '25M'); // Default 25M
         $maxLimitDownload = $request->input('max_limit_download', '50M'); // Default 50M
         $maxLimitUpload = $request->input('max_limit_upload', '25M'); // Default 25M
+        $TotalBandwith = $request->input('total_bandwith', '75M'); // Default 25M
 
-        // Step 1: Create queue types
+        // Step 1: Get DHCP Client Interface
+        $dhcpClientQuery = new Query('/ip/dhcp-client/print');
+        $dhcpClients = $client->query($dhcpClientQuery)->read();
+        $outInterfaceDownload = '';  // Default to empty if no DHCP client found
+        $outInterfaceUpload = '';    // Default to empty if no DHCP client found
+
+        // Ambil interface dari DHCP Client jika ada
+        if (!empty($dhcpClients)) {
+            foreach ($dhcpClients as $dhcpClient) {
+                if (isset($dhcpClient['interface'])) {
+                    // Asumsikan kita ambil interface yang pertama kali ditemukan
+                    $outInterfaceDownload = $dhcpClient['interface'];
+                    $outInterfaceUpload = $dhcpClient['interface'];  // Bisa disesuaikan jika ada logika khusus
+                    break;
+                }
+            }
+        }
+
+        // Step 2: Create queue types
         $downloadQueueQuery = new Query('/queue/type/add');
         $downloadQueueQuery->equal('name', 'download');
         $downloadQueueQuery->equal('kind', 'pcq');
@@ -163,8 +182,7 @@ class ScriptController extends CentralController
         $results['queue_download'] = $client->query($downloadQueueQuery)->read();
         $results['queue_upload'] = $client->query($uploadQueueQuery)->read();
 
-        // Step 2: Add mangle rules based on the screenshots
-
+        // Step 3: Add mangle rules based on the screenshots
         // Mark connection rule
         $connectionMarkQuery = new Query('/ip/firewall/mangle/add');
         $connectionMarkQuery->equal('chain', 'prerouting');
@@ -174,33 +192,34 @@ class ScriptController extends CentralController
         $connectionMarkQuery->equal('comment', 'Mark WAN connections');
         $results['mangle_connection_mark'] = $client->query($connectionMarkQuery)->read();
 
-        // Mark download traffic rule
+        // Mark download traffic rule with out-interface from DHCP Client
         $downloadMarkQuery = new Query('/ip/firewall/mangle/add');
         $downloadMarkQuery->equal('chain', 'forward');
         $downloadMarkQuery->equal('connection-mark', 'WAN_conn');
         $downloadMarkQuery->equal('action', 'mark-packet');
         $downloadMarkQuery->equal('new-packet-mark', 'download-traffic');
         $downloadMarkQuery->equal('in-interface', 'ether1');
+        $downloadMarkQuery->equal('out-interface', $outInterfaceDownload);  // Menggunakan interface DHCP client
         $downloadMarkQuery->equal('passthrough', 'yes');
         $downloadMarkQuery->equal('comment', 'Mark download traffic');
         $results['mangle_download_mark'] = $client->query($downloadMarkQuery)->read();
 
-        // Mark upload traffic rule
+        // Mark upload traffic rule with out-interface from DHCP Client
         $uploadMarkQuery = new Query('/ip/firewall/mangle/add');
         $uploadMarkQuery->equal('chain', 'forward');
         $uploadMarkQuery->equal('connection-mark', 'WAN_conn');
         $uploadMarkQuery->equal('action', 'mark-packet');
         $uploadMarkQuery->equal('new-packet-mark', 'upload-traffic');
-        $uploadMarkQuery->equal('out-interface', 'ether1');
+        $uploadMarkQuery->equal('out-interface', $outInterfaceUpload);  // Menggunakan interface DHCP client
         $uploadMarkQuery->equal('passthrough', 'yes');
         $uploadMarkQuery->equal('comment', 'Mark upload traffic');
         $results['mangle_upload_mark'] = $client->query($uploadMarkQuery)->read();
 
-        // Step 3: Create queue tree
+        // Step 4: Create queue tree
         $totalBandwidthQuery = new Query('/queue/tree/add');
         $totalBandwidthQuery->equal('name', 'Total-Bandwidth');
         $totalBandwidthQuery->equal('parent', 'global');
-        $totalBandwidthQuery->equal('max-limit', $maxLimitDownload);
+        $totalBandwidthQuery->equal('max-limit', $TotalBandwith);
         $totalBandwidthQuery->equal('comment', 'Total bandwidth limit');
         $results['queue_tree_total'] = $client->query($totalBandwidthQuery)->read();
 
@@ -290,9 +309,19 @@ class ScriptController extends CentralController
 
         // Update queue type berdasarkan parameter pcq-rate jika diberikan
         if (!empty($pcqRate)) {
+            // Pertama cari ID dari queue type berdasarkan nama
+            $findQueueQuery = new Query('/queue/type/print');
+            $findQueueQuery->where('name', $name);
+            $queueData = $this->getClientLogin()->query($findQueueQuery)->read();
+
+            if (empty($queueData)) {
+                return response()->json(['error' => 'Queue type not found: ' . $name], 404);
+            }
+
+            // Gunakan ID yang ditemukan untuk update
             $downloadQueueQuery = new Query('/queue/type/set');
-            $downloadQueueQuery->equal('name', $name);  // Nama queue (download, upload, dsb)
-            $downloadQueueQuery->equal('pcq-rate', $pcqRate);  // Update pcq-rate
+            $downloadQueueQuery->equal('.id', $queueData[0]['.id']);
+            $downloadQueueQuery->equal('pcq-rate', $pcqRate);
             $downloadQueueQuery->equal('pcq-limit', '50KiB');
             $downloadQueueQuery->equal('pcq-total-limit', '2000KiB');
             $results['queue_update'] = $this->getClientLogin()->query($downloadQueueQuery)->read();
@@ -300,9 +329,19 @@ class ScriptController extends CentralController
 
         // Update queue tree berdasarkan parameter max-limit jika diberikan
         if (!empty($maxLimit)) {
+            // Pertama cari ID dari queue tree berdasarkan nama
+            $findTreeQuery = new Query('/queue/tree/print');
+            $findTreeQuery->where('name', $name);
+            $treeData = $this->getClientLogin()->query($findTreeQuery)->read();
+
+            if (empty($treeData)) {
+                return response()->json(['error' => 'Queue tree not found: ' . $name], 404);
+            }
+
+            // Gunakan ID yang ditemukan untuk update
             $queueTreeQuery = new Query('/queue/tree/set');
-            $queueTreeQuery->equal('name', $name);  // Nama queue tree (Total-Bandwidth, Download, Upload, dsb)
-            $queueTreeQuery->equal('max-limit', $maxLimit);  // Update max-limit
+            $queueTreeQuery->equal('.id', $treeData[0]['.id']);
+            $queueTreeQuery->equal('max-limit', $maxLimit);
             $results['queue_tree_update'] = $this->getClientLogin()->query($queueTreeQuery)->read();
         }
 
@@ -319,21 +358,49 @@ class ScriptController extends CentralController
 {
     try {
         $results = [];
+        $itemDeleted = false;
 
-        // Hapus queue type berdasarkan nama
-        $queueDeleteQuery = new Query('/queue/type/remove');
-        $queueDeleteQuery->equal('name', $name);  // Nama queue (download, upload, dsb)
-        $results['queue_delete'] = $this->getClientLogin()->query($queueDeleteQuery)->read();
+        // Find and delete queue type based on name
+        $findQueueQuery = new Query('/queue/type/print');
+        $findQueueQuery->where('name', $name);
+        $queueData = $this->getClientLogin()->query($findQueueQuery)->read();
 
-        // Hapus queue tree berdasarkan nama
-        $queueTreeDeleteQuery = new Query('/queue/tree/remove');
-        $queueTreeDeleteQuery->equal('name', $name);  // Nama queue tree (Total-Bandwidth, Download, Upload, dsb)
-        $results['queue_tree_delete'] = $this->getClientLogin()->query($queueTreeDeleteQuery)->read();
+        if (!empty($queueData)) {
+            $queueDeleteQuery = new Query('/queue/type/remove');
+            $queueDeleteQuery->equal('.id', $queueData[0]['.id']);
+            $results['queue_delete'] = $this->getClientLogin()->query($queueDeleteQuery)->read();
+            $itemDeleted = true;
 
+            // Jika sudah menemukan dan menghapus queue type, langsung return
+            return response()->json([
+                'message' => 'Queue type berhasil dihapus',
+                'results' => $results
+            ]);
+        }
+
+        // Hanya memeriksa queue tree jika queue type tidak ditemukan
+        if (!$itemDeleted) {
+            $findTreeQuery = new Query('/queue/tree/print');
+            $findTreeQuery->where('name', $name);
+            $treeData = $this->getClientLogin()->query($findTreeQuery)->read();
+
+            if (!empty($treeData)) {
+                $queueTreeDeleteQuery = new Query('/queue/tree/remove');
+                $queueTreeDeleteQuery->equal('.id', $treeData[0]['.id']);
+                $results['queue_tree_delete'] = $this->getClientLogin()->query($queueTreeDeleteQuery)->read();
+
+                return response()->json([
+                    'message' => 'Queue tree berhasil dihapus',
+                    'results' => $results
+                ]);
+            }
+        }
+
+        // Jika tidak ada yang ditemukan
         return response()->json([
-            'message' => 'Bandwidth manager configuration berhasil dihapus',
+            'message' => 'Bandwidth manager dengan nama "' . $name . '" tidak ditemukan',
             'results' => $results
-        ]);
+        ], 404);
     } catch (\Exception $e) {
         return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
