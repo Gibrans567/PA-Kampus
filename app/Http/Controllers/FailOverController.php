@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 
-class FailOverController extends BaseMikrotikController
+class FailOverController extends CentralController
 {
 
     private function setupRoutingFailover($client, $gatewayMain, $gatewayBackup, $metricMain = 1, $metricBackup = 2, $pingCheck = 'ping')

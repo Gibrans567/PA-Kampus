@@ -52,6 +52,7 @@ Route::post('/mikrotik/terminal-cmd', [TerminalController::class, 'executeCmdCom
 Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(function () {
     Route::get('/mikrotik/list-voucher', [VoucherController::class, 'getVoucherLists']);
     Route::post('/mikrotik/add-hotspot-login-Annual', [VoucherController::class, 'AddVoucher']);
+    Route::post('/mikrotik/add-Multiple-user', [VoucherController::class, 'adduserBatch']);
     Route::get('/mikrotik/list-akun', [VoucherController::class, 'getHotspotUsers']);
 
     Route::get('/mikrotik-config', [CentralController::class, 'index']);

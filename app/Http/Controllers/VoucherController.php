@@ -431,4 +431,88 @@ class VoucherController extends CentralController
             return response()->json(['error' => $e->getMessage()], 500);
         }
         }
+
+    public function adduserBatch(Request $request)
+{
+    $request->validate([
+        'lantai' => 'required|integer|min:1',
+        'jumlah_kamar' => 'required|integer|min:1',
+        'profile' => 'required|string',
+    ]);
+
+    $lantai = $request->input('lantai');
+    $jumlah_kamar = $request->input('jumlah_kamar');
+    $profile = $request->input('profile');
+
+    try {
+        $client = $this->getClientLogin();
+
+        // Query untuk cek apakah profile ada
+        $profileQuery = (new Query('/ip/hotspot/user/profile/print'))
+            ->where('name', $profile);
+
+        $profileResult = $client->query($profileQuery)->read();
+
+        if (empty($profileResult)) {
+            return response()->json(['message' => "Profile '$profile' tidak ditemukan."], 404);
+        }
+
+        $generatedUsernames = [];
+        $existingUsernames = [];
+
+        // Loop untuk membuat username berdasarkan lantai dan jumlah kamar
+        $letter = 'a'; // Mulai dengan huruf A untuk kamar pertama
+        for ($kamar = 1; $kamar <= $jumlah_kamar; $kamar++) {
+            // Format username berdasarkan lantai dan kamar
+            $username = "lantai" . str_pad($lantai, 2, '0', STR_PAD_LEFT) . "kamar" . str_pad($kamar, 2, '0', STR_PAD_LEFT) . $letter;
+            $password = $username;  // Password sama dengan username
+            $link_login = "https://hotspot.awh.co.id/login?username={$username}&password={$password}";
+
+            // Check apakah username sudah ada di sistem
+            $userQuery = (new Query('/ip/hotspot/user/print'))
+                ->where('name', $username);
+
+            $userResult = $client->query($userQuery)->read();
+
+            if (!empty($userResult)) {
+                // Jika username sudah ada, simpan di existingUsernames
+                $existingUsernames[] = $username;
+                continue; // Lewati proses pembuatan user dan lanjut ke username berikutnya
+            }
+
+            // Tambahkan user baru jika username belum ada
+            $addUserQuery = (new Query('/ip/hotspot/user/add'))
+                ->equal('name', $username)
+                ->equal('password', $password)
+                ->equal('profile', $profile);
+
+            $client->query($addUserQuery)->read();
+
+            $generatedUsernames[] = [
+                'username' => $username,
+                'password' => $password,
+                'link_login' => $link_login,
+            ];
+
+            // Increment huruf untuk kamar selanjutnya
+            $letter++;
+        }
+
+        if (count($existingUsernames) > 0) {
+            return response()->json([
+                'message' => 'Voucher berhasil dibuat, namun beberapa username sudah ada.',
+                'generated_vouchers' => $generatedUsernames,
+                'existing_usernames' => $existingUsernames,
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Voucher berhasil dibuat.',
+            'generated_vouchers' => $generatedUsernames,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['message' => $e->getMessage()], 500);
+    }
+    }
+
 }
