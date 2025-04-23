@@ -339,6 +339,136 @@ class ScriptController extends CentralController
     }
     }
 
+    public function fixNatInterfaceWithExtraction(Request $request)
+    {
+        try {
+            // Mendapatkan koneksi ke MikroTik
+            $client = $this->getClient();
+
+            // 1. Dapatkan daftar semua interface OpenVPN yang tersedia
+            $interfaceQuery = new Query('/interface/print');
+            $interfaces = $client->query($interfaceQuery)->read();
+
+            // Buat array untuk menyimpan semua interface yang tersedia dengan format nama yang benar
+            $availableInterfaces = [];
+            foreach ($interfaces as $interface) {
+                if (isset($interface['name'])) {
+                    // Simpan nama interface dan formatnya dengan tanda kurung
+                    $availableInterfaces[$interface['name']] =  $interface['name'] ;
+                }
+            }
+
+            // 2. Cari semua rule NAT dengan masquerade yang memiliki masalah
+            $natQuery = new Query('/ip/firewall/nat/print');
+            $natQuery->where('action', 'masquerade');
+            $natRules = $client->query($natQuery)->read();
+
+            $updatedRules = [];
+            $noChanges = true;
+
+            foreach ($natRules as $rule) {
+                // Jika rule memiliki out-interface unknown atau rule invalid
+                if ((isset($rule['out-interface']) && $rule['out-interface'] === 'unknown') ||
+                    (isset($rule['invalid']) && $rule['invalid'] === 'true')) {
+
+                    $ruleId = $rule['.id'];
+                    $comment = isset($rule['comment']) ? $rule['comment'] : '';
+
+                    // Ekstrak nama client dari comment menggunakan explode
+                    $clientName = null;
+                    if (!empty($comment)) {
+                        // Asumsi format comment adalah "...Masquerade_nama_client..." atau sejenisnya
+                        if (strpos($comment, 'Masquerade_') !== false) {
+                            $parts = explode('Masquerade_', $comment);
+                            if (isset($parts[1])) {
+                                // Ambil bagian setelah "Masquerade_"
+                                $clientName = trim(explode(' ', $parts[1])[0]);
+                            }
+                        }
+                        // Coba ekstrak juga jika formatnya berbeda
+                        else if (strpos($comment, 'ovpn-') !== false) {
+                            $parts = explode('ovpn-', $comment);
+                            if (isset($parts[1])) {
+                                $clientName = 'ovpn-' . trim(explode(' ', $parts[1])[0]);
+                            }
+                        }
+                    }
+
+                    // Jika tidak bisa mengekstrak nama dari comment, coba dari out-interface lama
+                    if ($clientName === null && isset($rule['out-interface'])) {
+                        $oldInterface = $rule['out-interface'];
+                        if (strpos($oldInterface, '<') !== false && strpos($oldInterface, '>') !== false) {
+                            // Jika format out-interface lama adalah <ovpn-client>
+                            $clientName = str_replace(['<', '>'], '', $oldInterface);
+                        }
+                    }
+
+                    // Cari interface yang cocok berdasarkan nama client
+                    $newInterface = null;
+                    if ($clientName !== null) {
+                        // Cek apakah nama client ada dalam daftar interface tersedia
+                        foreach ($availableInterfaces as $ifName => $formattedName) {
+                            if ($ifName === $clientName || strpos($ifName, $clientName) !== false) {
+                                $newInterface = $formattedName;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Jika tidak ada kecocokan, gunakan nama rule untuk menebak interface
+                    if ($newInterface === null && isset($rule['name'])) {
+                        $ruleName = $rule['name'];
+                        foreach ($availableInterfaces as $ifName => $formattedName) {
+                            if (strpos($ruleName, str_replace('ovpn-', '', $ifName)) !== false) {
+                                $newInterface = $formattedName;
+                                break;
+                            }
+                        }
+                    }
+
+                    // Jika interface ditemukan, update rule
+                    if ($newInterface !== null) {
+                        // Update rule dengan interface yang ditemukan
+                        $updateQuery = new Query('/ip/firewall/nat/set');
+                        $updateQuery->equal('.id', $ruleId);
+                        $updateQuery->equal('out-interface', $newInterface);
+                        $client->query($updateQuery)->read();
+
+                        $updatedRules[] = [
+                            'rule_id' => $ruleId,
+                            'client_name' => $clientName,
+                            'new_interface' => $newInterface,
+                            'from_comment' => $comment
+                        ];
+
+                        $noChanges = false;
+                    }
+                }
+            }
+
+            if ($noChanges) {
+                return response()->json([
+                    'status' => 'info',
+                    'message' => 'Tidak ada rule NAT yang perlu diperbaiki',
+                    'available_interfaces' => $availableInterfaces
+                ], 200);
+            } else {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Berhasil memperbaiki ' . count($updatedRules) . ' rule NAT',
+                    'updated_rules' => $updatedRules,
+                    'available_interfaces' => $availableInterfaces
+                ], 200);
+            }
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
 }
 

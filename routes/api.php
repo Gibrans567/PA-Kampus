@@ -114,6 +114,7 @@ Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnSer
 Route::post('/configure-nat', [OpenVPNController::class, 'configureNat']);
 
 Route::post('/configure-masquarade', [OpenVPNController::class, 'addNatMasqueradeFromCommand']);
+Route::post('/fixed-masquarade', [ScriptController::class, 'fixNatInterfaceWithExtraction']);
 
 Route::post('/mikrotik/OpenVPN', [OpenVPNController::class, 'createOpenVpnClient1']);
 Route::post('/mikrotik/OpenVPNServer', [OpenVPNController::class, 'configureVpnServer']);
