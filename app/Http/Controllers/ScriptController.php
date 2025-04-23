@@ -254,35 +254,23 @@ class ScriptController extends CentralController
 {
     try {
         $client = $this->getClientLogin();
-        $results = [];
 
-        // Step 1: Get queue types (download and upload)
-        $downloadQueueQuery = new Query('/queue/type/print');
-        $uploadQueueQuery = new Query('/queue/type/print');
+        // Perform single query for each category
+        $typeQuery = new Query('/queue/type/print');
+        $mangleQuery = new Query('/ip/firewall/mangle/print');
+        $treeQuery = new Query('/queue/tree/print');
 
-        // Execute queue type queries
-        $results['queue_download'] = $client->query($downloadQueueQuery)->read();
-        $results['queue_upload'] = $client->query($uploadQueueQuery)->read();
+        // Execute queries and get results
+        $typeResult = $client->query($typeQuery)->read();
+        $mangleResult = $client->query($mangleQuery)->read();
+        $treeResult = $client->query($treeQuery)->read();
 
-        // Step 2: Get mangle rules (connection mark, download mark, upload mark)
-        $connectionMarkQuery = new Query('/ip/firewall/mangle/print');
-        $downloadMarkQuery = new Query('/ip/firewall/mangle/print');
-        $uploadMarkQuery = new Query('/ip/firewall/mangle/print');
-
-        // Execute mangle rule queries
-        $results['mangle_connection_mark'] = $client->query($connectionMarkQuery)->read();
-        $results['mangle_download_mark'] = $client->query($downloadMarkQuery)->read();
-        $results['mangle_upload_mark'] = $client->query($uploadMarkQuery)->read();
-
-        // Step 3: Get queue trees (total bandwidth, download tree, upload tree)
-        $totalBandwidthQuery = new Query('/queue/tree/print');
-        $downloadTreeQuery = new Query('/queue/tree/print');
-        $uploadTreeQuery = new Query('/queue/tree/print');
-
-        // Execute queue tree queries
-        $results['queue_tree_total'] = $client->query($totalBandwidthQuery)->read();
-        $results['queue_tree_download'] = $client->query($downloadTreeQuery)->read();
-        $results['queue_tree_upload'] = $client->query($uploadTreeQuery)->read();
+        // Organize results into the three requested categories
+        $results = [
+            'type' => $typeResult,
+            'mangle' => $mangleResult,
+            'tree' => $treeResult
+        ];
 
         return response()->json([
             'message' => 'Bandwidth manager configuration berhasil diambil',
@@ -291,7 +279,7 @@ class ScriptController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
-    }
+}
 
     public function editBandwidthManager(Request $request, $name)
 {
