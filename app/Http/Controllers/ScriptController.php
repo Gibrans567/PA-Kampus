@@ -265,6 +265,22 @@ class ScriptController extends CentralController
         $mangleResult = $client->query($mangleQuery)->read();
         $treeResult = $client->query($treeQuery)->read();
 
+        // Format the pcq-rate values in type results
+        foreach ($typeResult as &$type) {
+            if (isset($type['pcq-rate'])) {
+                // Convert to M format (assuming the value is in numeric form)
+                $type['pcq-rate'] = $this->formatToMegabits($type['pcq-rate']);
+            }
+        }
+
+        // Format the max-limit values in tree results
+        foreach ($treeResult as &$tree) {
+            if (isset($tree['max-limit'])) {
+                // Convert to M format
+                $tree['max-limit'] = $this->formatToMegabits($tree['max-limit']);
+            }
+        }
+
         // Organize results into the three requested categories
         $results = [
             'type' => $typeResult,
@@ -279,7 +295,39 @@ class ScriptController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
-}
+    }
+
+    private function formatToMegabits($value)
+    {
+        // If the value already ends with 'M', return as is
+        if (substr($value, -1) === 'M') {
+            return $value;
+        }
+
+        // If the value contains 'k' or other unit, convert it
+        if (preg_match('/^(\d+)([kK]|[mM]|[gG])?/', $value, $matches)) {
+            $number = (int) $matches[1];
+            $unit = isset($matches[2]) ? strtoupper($matches[2]) : '';
+
+            switch ($unit) {
+                case 'K':
+                    // Convert Kbps to Mbps (divide by 1000)
+                    return round($number / 1000, 2) . 'M';
+                case 'G':
+                    // Convert Gbps to Mbps (multiply by 1000)
+                    return ($number * 1000) . 'M';
+                case 'M':
+                    // Already in Mbps
+                    return $number . 'M';
+                default:
+                    // Assume it's raw bps, convert to Mbps
+                    return round($number / 1000000, 2) . 'M';
+            }
+        }
+
+        // If no match or just a number, append 'M'
+        return $value . 'M';
+    }
 
     public function editBandwidthManager(Request $request, $name)
 {
