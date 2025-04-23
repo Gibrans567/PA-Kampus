@@ -22,7 +22,7 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/mikrotik/update-data', [VoucherController::class, 'UpdateData']);
 Route::post('/mikrotik/update-status', [VoucherController::class, 'updateAllHotspotUsersByPhoneNumber']);
-Route::get('/mikrotik/list-akun', [VoucherController::class, 'getHotspotUsers']);
+
 
 Route::post('/mikrotik/run-migrations', [ArtisanController::class, 'runMigrations']);
 Route::post('/mikrotik/run-tenant-migrate', [ArtisanController::class, 'runTenantMigrations']);
@@ -43,7 +43,7 @@ Route::get('/mikrotik/get-all-menu', [MenuController::class, 'getAllMenus']);
 Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 
 Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
-Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
+
 
 Route::get('/mikrotik/Router-info', [TerminalController::class, 'getRouterInfo']);
 Route::post('/mikrotik/terminal-mikrotik', [TerminalController::class, 'executeMikrotikCommand']);
@@ -52,6 +52,7 @@ Route::post('/mikrotik/terminal-cmd', [TerminalController::class, 'executeCmdCom
 Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(function () {
     Route::get('/mikrotik/list-voucher', [VoucherController::class, 'getVoucherLists']);
     Route::post('/mikrotik/add-hotspot-login-Annual', [VoucherController::class, 'AddVoucher']);
+    Route::get('/mikrotik/list-akun', [VoucherController::class, 'getHotspotUsers']);
 
     Route::get('/mikrotik-config', [CentralController::class, 'index']);
     Route::post('/mikrotik-config', [CentralController::class, 'store']);
@@ -73,6 +74,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'updateHotspotProfile']);
     Route::post('/mikrotik/set-profile', [HotspotProfileController::class, 'setHotspotProfile']);
     Route::delete('/mikrotik/delete-profile/{profile_name}', [HotspotProfileController::class, 'deleteHotspotProfile']);
+    Route::get('/mikrotik/get-profile', [HotspotProfileController::class, 'getHotspotProfile']);
 
     Route::get('/mikrotik/Dhcp-info', [DHCPController::class, 'getDhcpServers']);
     Route::get('/mikrotik/Dhcp-info/{name}', [DHCPController::class, 'getDhcpServerByName']);

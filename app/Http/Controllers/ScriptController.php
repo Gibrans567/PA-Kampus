@@ -57,26 +57,6 @@ class ScriptController extends CentralController
     }
     }
 
-    public function getSystemInfo1()
-    {
-        try {
-            $client = $this->getClientLogin();
-
-            // TEST: Mulai dari resource dulu
-            $resourceData = $client->query(new Query('/system/resource/print'))->read();
-
-            if (empty($resourceData)) {
-                return response()->json(['error' => 'Resource data kosong!'], 500);
-            }
-
-            return response()->json([
-                'resource_raw' => $resourceData
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
-        }
-    }
-
     public function getSystemInfo()
 {
     try {
@@ -143,107 +123,223 @@ class ScriptController extends CentralController
     }
 
     public function addBandwidthManager(Request $request)
-    {
-        try {
-            $client = $this->getClientLogin();
-            $results = [];
+{
+    try {
+        $client = $this->getClientLogin();
+        $results = [];
 
-            // Step 1: Create queue types
-            $downloadQueueQuery = new Query('/queue/type/add');
-            $downloadQueueQuery->equal('name', 'download');
-            $downloadQueueQuery->equal('kind', 'pcq');
-            $downloadQueueQuery->equal('pcq-rate', '50M');
-            $downloadQueueQuery->equal('pcq-classifier', 'dst-address');
+        // Ambil input dari request
+        $pcqRateDownload = $request->input('pcq_rate_download', '50M'); // Default 50M
+        $pcqRateUpload = $request->input('pcq_rate_upload', '25M'); // Default 25M
+        $maxLimitDownload = $request->input('max_limit_download', '50M'); // Default 50M
+        $maxLimitUpload = $request->input('max_limit_upload', '25M'); // Default 25M
+
+        // Step 1: Create queue types
+        $downloadQueueQuery = new Query('/queue/type/add');
+        $downloadQueueQuery->equal('name', 'download');
+        $downloadQueueQuery->equal('kind', 'pcq');
+        $downloadQueueQuery->equal('pcq-rate', $pcqRateDownload);
+        $downloadQueueQuery->equal('pcq-classifier', 'dst-address');
+        $downloadQueueQuery->equal('pcq-limit', '50KiB');
+        $downloadQueueQuery->equal('pcq-total-limit', '2000KiB');
+        $downloadQueueQuery->equal('pcq-src-address-mask', '32');
+        $downloadQueueQuery->equal('pcq-dst-address-mask', '32');
+        $downloadQueueQuery->equal('pcq-src-address6-mask', '128');
+        $downloadQueueQuery->equal('pcq-dst-address6-mask', '128');
+
+        $uploadQueueQuery = new Query('/queue/type/add');
+        $uploadQueueQuery->equal('name', 'upload');
+        $uploadQueueQuery->equal('kind', 'pcq');
+        $uploadQueueQuery->equal('pcq-rate', $pcqRateUpload);
+        $uploadQueueQuery->equal('pcq-classifier', 'src-address');
+        $uploadQueueQuery->equal('pcq-limit', '50KiB');
+        $uploadQueueQuery->equal('pcq-total-limit', '2000KiB');
+        $uploadQueueQuery->equal('pcq-src-address-mask', '32');
+        $uploadQueueQuery->equal('pcq-dst-address-mask', '32');
+        $uploadQueueQuery->equal('pcq-src-address6-mask', '128');
+        $uploadQueueQuery->equal('pcq-dst-address6-mask', '128');
+
+        // Execute queue type queries
+        $results['queue_download'] = $client->query($downloadQueueQuery)->read();
+        $results['queue_upload'] = $client->query($uploadQueueQuery)->read();
+
+        // Step 2: Add mangle rules based on the screenshots
+
+        // Mark connection rule
+        $connectionMarkQuery = new Query('/ip/firewall/mangle/add');
+        $connectionMarkQuery->equal('chain', 'prerouting');
+        $connectionMarkQuery->equal('action', 'mark-connection');
+        $connectionMarkQuery->equal('new-connection-mark', 'WAN_conn');
+        $connectionMarkQuery->equal('in-interface', 'ether1');
+        $connectionMarkQuery->equal('comment', 'Mark WAN connections');
+        $results['mangle_connection_mark'] = $client->query($connectionMarkQuery)->read();
+
+        // Mark download traffic rule
+        $downloadMarkQuery = new Query('/ip/firewall/mangle/add');
+        $downloadMarkQuery->equal('chain', 'forward');
+        $downloadMarkQuery->equal('connection-mark', 'WAN_conn');
+        $downloadMarkQuery->equal('action', 'mark-packet');
+        $downloadMarkQuery->equal('new-packet-mark', 'download-traffic');
+        $downloadMarkQuery->equal('in-interface', 'ether1');
+        $downloadMarkQuery->equal('passthrough', 'yes');
+        $downloadMarkQuery->equal('comment', 'Mark download traffic');
+        $results['mangle_download_mark'] = $client->query($downloadMarkQuery)->read();
+
+        // Mark upload traffic rule
+        $uploadMarkQuery = new Query('/ip/firewall/mangle/add');
+        $uploadMarkQuery->equal('chain', 'forward');
+        $uploadMarkQuery->equal('connection-mark', 'WAN_conn');
+        $uploadMarkQuery->equal('action', 'mark-packet');
+        $uploadMarkQuery->equal('new-packet-mark', 'upload-traffic');
+        $uploadMarkQuery->equal('out-interface', 'ether1');
+        $uploadMarkQuery->equal('passthrough', 'yes');
+        $uploadMarkQuery->equal('comment', 'Mark upload traffic');
+        $results['mangle_upload_mark'] = $client->query($uploadMarkQuery)->read();
+
+        // Step 3: Create queue tree
+        $totalBandwidthQuery = new Query('/queue/tree/add');
+        $totalBandwidthQuery->equal('name', 'Total-Bandwidth');
+        $totalBandwidthQuery->equal('parent', 'global');
+        $totalBandwidthQuery->equal('max-limit', $maxLimitDownload);
+        $totalBandwidthQuery->equal('comment', 'Total bandwidth limit');
+        $results['queue_tree_total'] = $client->query($totalBandwidthQuery)->read();
+
+        $downloadTreeQuery = new Query('/queue/tree/add');
+        $downloadTreeQuery->equal('name', 'Download');
+        $downloadTreeQuery->equal('parent', 'Total-Bandwidth');
+        $downloadTreeQuery->equal('packet-mark', 'download-traffic');
+        $downloadTreeQuery->equal('queue', 'download');
+        $downloadTreeQuery->equal('max-limit', $maxLimitDownload);
+        $downloadTreeQuery->equal('comment', 'All download traffic');
+        $results['queue_tree_download'] = $client->query($downloadTreeQuery)->read();
+
+        $uploadTreeQuery = new Query('/queue/tree/add');
+        $uploadTreeQuery->equal('name', 'Upload');
+        $uploadTreeQuery->equal('parent', 'Total-Bandwidth');
+        $uploadTreeQuery->equal('packet-mark', 'upload-traffic');
+        $uploadTreeQuery->equal('queue', 'upload');
+        $uploadTreeQuery->equal('max-limit', $maxLimitUpload);
+        $uploadTreeQuery->equal('comment', 'All upload traffic');
+        $results['queue_tree_upload'] = $client->query($uploadTreeQuery)->read();
+
+        return response()->json([
+            'message' => 'Bandwidth manager configuration berhasil ditambahkan',
+            'results' => $results
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+    }
+    }
+
+    public function getBandwidthManager(Request $request)
+{
+    try {
+        $client = $this->getClientLogin();
+        $results = [];
+
+        // Step 1: Get queue types (download and upload)
+        $downloadQueueQuery = new Query('/queue/type/print');
+        $uploadQueueQuery = new Query('/queue/type/print');
+
+        // Execute queue type queries
+        $results['queue_download'] = $client->query($downloadQueueQuery)->read();
+        $results['queue_upload'] = $client->query($uploadQueueQuery)->read();
+
+        // Step 2: Get mangle rules (connection mark, download mark, upload mark)
+        $connectionMarkQuery = new Query('/ip/firewall/mangle/print');
+        $downloadMarkQuery = new Query('/ip/firewall/mangle/print');
+        $uploadMarkQuery = new Query('/ip/firewall/mangle/print');
+
+        // Execute mangle rule queries
+        $results['mangle_connection_mark'] = $client->query($connectionMarkQuery)->read();
+        $results['mangle_download_mark'] = $client->query($downloadMarkQuery)->read();
+        $results['mangle_upload_mark'] = $client->query($uploadMarkQuery)->read();
+
+        // Step 3: Get queue trees (total bandwidth, download tree, upload tree)
+        $totalBandwidthQuery = new Query('/queue/tree/print');
+        $downloadTreeQuery = new Query('/queue/tree/print');
+        $uploadTreeQuery = new Query('/queue/tree/print');
+
+        // Execute queue tree queries
+        $results['queue_tree_total'] = $client->query($totalBandwidthQuery)->read();
+        $results['queue_tree_download'] = $client->query($downloadTreeQuery)->read();
+        $results['queue_tree_upload'] = $client->query($uploadTreeQuery)->read();
+
+        return response()->json([
+            'message' => 'Bandwidth manager configuration berhasil diambil',
+            'results' => $results
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+    }
+    }
+
+    public function editBandwidthManager(Request $request, $name)
+{
+    try {
+        // Ambil input dari request
+        $pcqRate = $request->input('pcq_rate'); // Input pcq-rate
+        $maxLimit = $request->input('max_limit'); // Input max-limit
+
+        // Validasi: Pastikan ada inputan yang diberikan (bisa salah satu atau keduanya)
+        if (empty($pcqRate) && empty($maxLimit)) {
+            return response()->json(['error' => 'At least one parameter (pcq_rate or max_limit) is required'], 400);
+        }
+
+        $results = [];
+
+        // Update queue type berdasarkan parameter pcq-rate jika diberikan
+        if (!empty($pcqRate)) {
+            $downloadQueueQuery = new Query('/queue/type/set');
+            $downloadQueueQuery->equal('name', $name);  // Nama queue (download, upload, dsb)
+            $downloadQueueQuery->equal('pcq-rate', $pcqRate);  // Update pcq-rate
             $downloadQueueQuery->equal('pcq-limit', '50KiB');
             $downloadQueueQuery->equal('pcq-total-limit', '2000KiB');
-            $downloadQueueQuery->equal('pcq-src-address-mask', '32');
-            $downloadQueueQuery->equal('pcq-dst-address-mask', '32');
-            $downloadQueueQuery->equal('pcq-src-address6-mask', '128');
-            $downloadQueueQuery->equal('pcq-dst-address6-mask', '128');
-
-            $uploadQueueQuery = new Query('/queue/type/add');
-            $uploadQueueQuery->equal('name', 'upload');
-            $uploadQueueQuery->equal('kind', 'pcq');
-            $uploadQueueQuery->equal('pcq-rate', '25M');
-            $uploadQueueQuery->equal('pcq-classifier', 'src-address');
-            $uploadQueueQuery->equal('pcq-limit', '50KiB');
-            $uploadQueueQuery->equal('pcq-total-limit', '2000KiB');
-            $uploadQueueQuery->equal('pcq-src-address-mask', '32');
-            $uploadQueueQuery->equal('pcq-dst-address-mask', '32');
-            $uploadQueueQuery->equal('pcq-src-address6-mask', '128');
-            $uploadQueueQuery->equal('pcq-dst-address6-mask', '128');
-
-            // Execute queue type queries
-            $results['queue_download'] = $client->query($downloadQueueQuery)->read();
-            $results['queue_upload'] = $client->query($uploadQueueQuery)->read();
-
-            // Step 2: Add mangle rules based on the screenshots
-
-            // Mark connection rule
-            $connectionMarkQuery = new Query('/ip/firewall/mangle/add');
-            $connectionMarkQuery->equal('chain', 'prerouting');
-            $connectionMarkQuery->equal('action', 'mark-connection');
-            $connectionMarkQuery->equal('new-connection-mark', 'WAN_conn');
-            $connectionMarkQuery->equal('in-interface', 'ether1');
-            $connectionMarkQuery->equal('comment', 'Mark WAN connections');
-            $results['mangle_connection_mark'] = $client->query($connectionMarkQuery)->read();
-
-            // Mark download traffic rule (as shown in your screenshots)
-            $downloadMarkQuery = new Query('/ip/firewall/mangle/add');
-            $downloadMarkQuery->equal('chain', 'forward');
-            $downloadMarkQuery->equal('connection-mark', 'WAN_conn');
-            $downloadMarkQuery->equal('action', 'mark-packet');
-            $downloadMarkQuery->equal('new-packet-mark', 'download-traffic');
-            $downloadMarkQuery->equal('in-interface', 'ether1');
-            $downloadMarkQuery->equal('passthrough', 'yes');
-            $downloadMarkQuery->equal('comment', 'Mark download traffic');
-            $results['mangle_download_mark'] = $client->query($downloadMarkQuery)->read();
-
-            // Mark upload traffic rule
-            $uploadMarkQuery = new Query('/ip/firewall/mangle/add');
-            $uploadMarkQuery->equal('chain', 'forward');
-            $uploadMarkQuery->equal('connection-mark', 'WAN_conn');
-            $uploadMarkQuery->equal('action', 'mark-packet');
-            $uploadMarkQuery->equal('new-packet-mark', 'upload-traffic');
-            $uploadMarkQuery->equal('out-interface', 'ether1');
-            $uploadMarkQuery->equal('passthrough', 'yes');
-            $uploadMarkQuery->equal('comment', 'Mark upload traffic');
-            $results['mangle_upload_mark'] = $client->query($uploadMarkQuery)->read();
-
-            // Step 3: Create queue tree
-            $totalBandwidthQuery = new Query('/queue/tree/add');
-            $totalBandwidthQuery->equal('name', 'Total-Bandwidth');
-            $totalBandwidthQuery->equal('parent', 'global');
-            $totalBandwidthQuery->equal('max-limit', '50M');
-            $totalBandwidthQuery->equal('comment', 'Total bandwidth limit');
-            $results['queue_tree_total'] = $client->query($totalBandwidthQuery)->read();
-
-            $downloadTreeQuery = new Query('/queue/tree/add');
-            $downloadTreeQuery->equal('name', 'Download');
-            $downloadTreeQuery->equal('parent', 'Total-Bandwidth');
-            $downloadTreeQuery->equal('packet-mark', 'download-traffic');
-            $downloadTreeQuery->equal('queue', 'download');
-            $downloadTreeQuery->equal('max-limit', '50M');
-            $downloadTreeQuery->equal('comment', 'All download traffic');
-            $results['queue_tree_download'] = $client->query($downloadTreeQuery)->read();
-
-            $uploadTreeQuery = new Query('/queue/tree/add');
-            $uploadTreeQuery->equal('name', 'Upload');
-            $uploadTreeQuery->equal('parent', 'Total-Bandwidth');
-            $uploadTreeQuery->equal('packet-mark', 'upload-traffic');
-            $uploadTreeQuery->equal('queue', 'upload');
-            $uploadTreeQuery->equal('max-limit', '25M');
-            $uploadTreeQuery->equal('comment', 'All upload traffic');
-            $results['queue_tree_upload'] = $client->query($uploadTreeQuery)->read();
-
-            return response()->json([
-                'message' => 'Bandwidth manager configuration berhasil ditambahkan',
-                'results' => $results
-            ]);
-        } catch (\Exception $e) {
-            return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+            $results['queue_update'] = $this->getClientLogin()->query($downloadQueueQuery)->read();
         }
+
+        // Update queue tree berdasarkan parameter max-limit jika diberikan
+        if (!empty($maxLimit)) {
+            $queueTreeQuery = new Query('/queue/tree/set');
+            $queueTreeQuery->equal('name', $name);  // Nama queue tree (Total-Bandwidth, Download, Upload, dsb)
+            $queueTreeQuery->equal('max-limit', $maxLimit);  // Update max-limit
+            $results['queue_tree_update'] = $this->getClientLogin()->query($queueTreeQuery)->read();
+        }
+
+        return response()->json([
+            'message' => 'Bandwidth manager configuration berhasil diperbarui',
+            'results' => $results
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
+    }
+
+    public function deleteBandwidthManager(Request $request, $name)
+{
+    try {
+        $results = [];
+
+        // Hapus queue type berdasarkan nama
+        $queueDeleteQuery = new Query('/queue/type/remove');
+        $queueDeleteQuery->equal('name', $name);  // Nama queue (download, upload, dsb)
+        $results['queue_delete'] = $this->getClientLogin()->query($queueDeleteQuery)->read();
+
+        // Hapus queue tree berdasarkan nama
+        $queueTreeDeleteQuery = new Query('/queue/tree/remove');
+        $queueTreeDeleteQuery->equal('name', $name);  // Nama queue tree (Total-Bandwidth, Download, Upload, dsb)
+        $results['queue_tree_delete'] = $this->getClientLogin()->query($queueTreeDeleteQuery)->read();
+
+        return response()->json([
+            'message' => 'Bandwidth manager configuration berhasil dihapus',
+            'results' => $results
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+    }
+    }
+
+
 }
 
 
