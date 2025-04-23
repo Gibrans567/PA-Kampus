@@ -329,66 +329,77 @@ class ScriptController extends CentralController
         return $value . 'M';
     }
 
-    public function editBandwidthManager(Request $request, $name)
+    public function editQueueType(Request $request, $name)
 {
     try {
         // Ambil input dari request
-        $pcqRate = $request->input('pcq_rate'); // Input pcq-rate
-        $maxLimit = $request->input('max_limit'); // Input max-limit
+        $pcqRate = $request->input('pcq_rate');
 
-        // Validasi: Pastikan ada inputan yang diberikan (bisa salah satu atau keduanya)
-        if (empty($pcqRate) && empty($maxLimit)) {
-            return response()->json(['error' => 'At least one parameter (pcq_rate or max_limit) is required'], 400);
+        // Validasi: Pastikan pcq_rate diberikan
+        if (empty($pcqRate)) {
+            return response()->json(['error' => 'Parameter pcq_rate is required'], 400);
         }
 
-        $results = [];
+        // Pertama cari ID dari queue type berdasarkan nama
+        $findQueueQuery = new Query('/queue/type/print');
+        $findQueueQuery->where('name', $name);
+        $queueData = $this->getClientLogin()->query($findQueueQuery)->read();
 
-        // Update queue type berdasarkan parameter pcq-rate jika diberikan
-        if (!empty($pcqRate)) {
-            // Pertama cari ID dari queue type berdasarkan nama
-            $findQueueQuery = new Query('/queue/type/print');
-            $findQueueQuery->where('name', $name);
-            $queueData = $this->getClientLogin()->query($findQueueQuery)->read();
-
-            if (empty($queueData)) {
-                return response()->json(['error' => 'Queue type not found: ' . $name], 404);
-            }
-
-            // Gunakan ID yang ditemukan untuk update
-            $downloadQueueQuery = new Query('/queue/type/set');
-            $downloadQueueQuery->equal('.id', $queueData[0]['.id']);
-            $downloadQueueQuery->equal('pcq-rate', $pcqRate);
-            $downloadQueueQuery->equal('pcq-limit', '50KiB');
-            $downloadQueueQuery->equal('pcq-total-limit', '2000KiB');
-            $results['queue_update'] = $this->getClientLogin()->query($downloadQueueQuery)->read();
+        if (empty($queueData)) {
+            return response()->json(['error' => 'Queue type not found: ' . $name], 404);
         }
 
-        // Update queue tree berdasarkan parameter max-limit jika diberikan
-        if (!empty($maxLimit)) {
-            // Pertama cari ID dari queue tree berdasarkan nama
-            $findTreeQuery = new Query('/queue/tree/print');
-            $findTreeQuery->where('name', $name);
-            $treeData = $this->getClientLogin()->query($findTreeQuery)->read();
-
-            if (empty($treeData)) {
-                return response()->json(['error' => 'Queue tree not found: ' . $name], 404);
-            }
-
-            // Gunakan ID yang ditemukan untuk update
-            $queueTreeQuery = new Query('/queue/tree/set');
-            $queueTreeQuery->equal('.id', $treeData[0]['.id']);
-            $queueTreeQuery->equal('max-limit', $maxLimit);
-            $results['queue_tree_update'] = $this->getClientLogin()->query($queueTreeQuery)->read();
-        }
+        // Gunakan ID yang ditemukan untuk update
+        $queueTypeQuery = new Query('/queue/type/set');
+        $queueTypeQuery->equal('.id', $queueData[0]['.id']);
+        $queueTypeQuery->equal('pcq-rate', $pcqRate);
+        $queueTypeQuery->equal('pcq-limit', '50KiB');
+        $queueTypeQuery->equal('pcq-total-limit', '2000KiB');
+        $result = $this->getClientLogin()->query($queueTypeQuery)->read();
 
         return response()->json([
-            'message' => 'Bandwidth manager configuration berhasil diperbarui',
-            'results' => $results
+            'message' => 'Queue type configuration berhasil diperbarui',
+            'result' => $result
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
     }
     }
+
+    public function editQueueTree(Request $request, $name)
+{
+    try {
+        // Ambil input dari request
+        $maxLimit = $request->input('max_limit');
+
+        // Validasi: Pastikan max_limit diberikan
+        if (empty($maxLimit)) {
+            return response()->json(['error' => 'Parameter max_limit is required'], 400);
+        }
+
+        // Pertama cari ID dari queue tree berdasarkan nama
+        $findTreeQuery = new Query('/queue/tree/print');
+        $findTreeQuery->where('name', $name);
+        $treeData = $this->getClientLogin()->query($findTreeQuery)->read();
+
+        if (empty($treeData)) {
+            return response()->json(['error' => 'Queue tree not found: ' . $name], 404);
+        }
+
+        // Gunakan ID yang ditemukan untuk update
+        $queueTreeQuery = new Query('/queue/tree/set');
+        $queueTreeQuery->equal('.id', $treeData[0]['.id']);
+        $queueTreeQuery->equal('max-limit', $maxLimit);
+        $result = $this->getClientLogin()->query($queueTreeQuery)->read();
+
+        return response()->json([
+            'message' => 'Queue tree configuration berhasil diperbarui',
+            'result' => $result
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Exception: ' . $e->getMessage()], 500);
+    }
+}
 
     public function deleteBandwidthManager(Request $request, $name)
 {
