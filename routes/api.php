@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ByteController;
 use App\Http\Controllers\CentralController;
 use App\Http\Controllers\DHCPController;
+use App\Http\Controllers\FailOverController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\HotspotProfileController;
 use App\Http\Controllers\MenuController;
@@ -44,8 +45,6 @@ Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 
 Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
 
-
-Route::get('/mikrotik/Router-info', [TerminalController::class, 'getRouterInfo']);
 Route::post('/mikrotik/terminal-mikrotik', [TerminalController::class, 'executeMikrotikCommand']);
 Route::post('/mikrotik/terminal-cmd', [TerminalController::class, 'executeCmdCommand']);
 
@@ -98,6 +97,11 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
 
     Route::get('/mikrotik/get-info', [ScriptController::class, 'getSystemInfo']);
+
+    Route::get('/mikrotik/get-netwatch', [FailOverController::class, 'getNetwatch']);
+    Route::get('/mikrotik/get-route', [FailOverController::class, 'getRoute']);
+    Route::post('/mikrotik/add-netwatch', [FailOverController::class, 'addNetwatch']);
+    Route::get('/mikrotik/get-log', [FailOverController::class, 'getLatestLogs']);
 
     Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkInterface']);
 

@@ -10,193 +10,188 @@ use Illuminate\Support\Facades\Cache;
 class FailOverController extends CentralController
 {
 
-    private function setupRoutingFailover($client, $gatewayMain, $gatewayBackup, $metricMain = 1, $metricBackup = 2, $pingCheck = 'ping')
-{
-    $query = new Query('/ip/route/add');
-    $query->equal('gateway', $gatewayMain)
-        ->equal('distance', $metricMain)
-        ->equal('check-gateway', $pingCheck);
-    $client->query($query);
-
-    $query = new Query('/ip/route/add');
-    $query->equal('gateway', $gatewayBackup)
-        ->equal('distance', $metricBackup)
-        ->equal('check-gateway', $pingCheck);
-    $client->query($query);
-    }
-
-    private function setupNetwatchFailover($client, $gatewayMain, $gatewayBackup, $interval = '10s', $timeout = '1s')
+    public function getNetwatch()
     {
-        $query = new Query('/tool/netwatch/add');
-        $query->equal('host', $gatewayMain)
-            ->equal('interval', $interval)
-            ->equal('timeout', $timeout)
-            ->equal('up-script', '/ip route enable [find gateway=' . $gatewayMain . ']')
-            ->equal('down-script', '/ip route disable [find gateway=' . $gatewayMain . ']');
-        $client->query($query);
 
-        $query = new Query('/tool/netwatch/add');
-        $query->equal('host', $gatewayBackup)
-            ->equal('interval', $interval)
-            ->equal('timeout', $timeout)
-            ->equal('up-script', '/ip route enable [find gateway=' . $gatewayBackup . ']')
-            ->equal('down-script', '/ip route disable [find gateway=' . $gatewayBackup . ']');
-        $client->query($query);
-    }
-
-    public function addFailoverData(Request $request)
-    {
-        $request->validate([
-            'gateway_main' => 'required|ip',
-            'gateway_backup' => 'required|ip',
-            'metric_main' => 'required|integer|min:1',
-            'metric_backup' => 'required|integer|min:2',
-            'interval' => 'nullable|string|in:5s,10s,20s,30s',
-            'timeout' => 'nullable|string|in:1s,2s,3s,5s',
-        ]);
-
-        $gatewayMain = $request->input('gateway_main');
-        $gatewayBackup = $request->input('gateway_backup');
-        $metricMain = $request->input('metric_main', 1);
-        $metricBackup = $request->input('metric_backup', 2);
-        $interval = $request->input('interval', '10s');
-        $timeout = $request->input('timeout', '1s');
 
         try {
-         $client = $this->getClient();
+            // Inisialisasi koneksi
+            $client = $this->getClientLogin();
 
-            $this->setupRoutingFailover($client, $gatewayMain, $gatewayBackup, $metricMain, $metricBackup);
+            // Query untuk mendapatkan daftar Netwatch
+            $query = new Query('/tool/netwatch/print');
 
-            $this->setupNetwatchFailover($client, $gatewayMain, $gatewayBackup, $interval, $timeout);
+            // Eksekusi query
+            $response = $client->query($query)->read();
 
-            // Simpan data failover baru ke database atau tempat penyimpanan lainnya jika diperlukan
-            // Misalnya menyimpan data ke tabel `failover_gateways`
-            // FailoverGateway::create([
-            //     'gateway_main' => $gatewayMain,
-            //     'gateway_backup' => $gatewayBackup,
-            //     'metric_main' => $metricMain,
-            //     'metric_backup' => $metricBackup,
-            //     'interval' => $interval,
-            //     'timeout' => $timeout
-            // ]);
+            // Cek apakah ada hasil
+            if (!empty($response)) {
+                return response()->json([
+                    'status' => 'success',
+                    'data' => $response
+                ]);
+            } else {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Tidak ada data Netwatch'
+                ]);
+            }
 
-            return response()->json([
-                'message' => 'Data failover berhasil ditambahkan.',
-                'data' => [
-                    'gateway_main' => $gatewayMain,
-                    'gateway_backup' => $gatewayBackup,
-                    'metric_main' => $metricMain,
-                    'metric_backup' => $metricBackup,
-                    'interval' => $interval,
-                    'timeout' => $timeout,
-                ]
-            ]);
         } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+            // Tangani error jika koneksi gagal
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Gagal menghubungi Mikrotik: ' . $e->getMessage()
+            ]);
         }
     }
 
     public function getRoute()
     {
-         $client = $this->getClient();
+
 
         try {
-            $query = new Query('/ip/route/print');
+            // Inisialisasi koneksi
+            $client = $this->getClientLogin();
 
-            $leases = $client->query($query)->read();
+            // Query untuk mendapatkan daftar Netwatch
+            $query = new Query('/ip/route/print'); // Perintah untuk route list
+            $response = $client->query($query)->read();
 
-            return response()->json([
-                'status' => 'success',
-                'leases' => $leases
-            ]);
+            // Cek apakah ada data yang ditemukan
+            if (!empty($response)) {
+                // Menampilkan hanya 4 kolom yang diperlukan (id, dst-address, gateway, vrf-interface)
+                $filteredData = collect($response)->map(function ($item) {
+                    return [
+                        'id' => $item['.id'] ?? null, // ID route
+                        'dst-address' => $item['dst-address'] ?? null, // Alamat tujuan
+                        'gateway' => $item['gateway'] ?? null, // Gateway
+                        'vrf-interface' => $item['vrf-interface'] ?? null // Interface VRF
+                    ];
+                });
+
+                return response()->json([
+                    'status' => 'success',
+                    'data' => $filteredData
+                ]);
+            } else {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Tidak ada route list yang ditemukan'
+                ]);
+            }
 
         } catch (\Exception $e) {
+            // Menangani error jika koneksi gagal
             return response()->json([
                 'status' => 'error',
-                'message' => 'Failed to fetch leases: ' . $e->getMessage(),
-            ], 500);
+                'message' => 'Gagal menghubungi Mikrotik: ' . $e->getMessage()
+            ]);
         }
     }
 
-    public function deleteFailoverData(Request $request)
+    public function addNetwatch(Request $request)
 {
-    $request->validate([
-        'gateway_main' => 'required|ip',
-        'gateway_backup' => 'required|ip',
-    ]);
+    // Ambil nilai dari input form
+    $primaryGateway = $request->input('primary_gateway');
+    $backupGateway = $request->input('backup_gateway');
 
-    $gatewayMain = $request->input('gateway_main');
-    $gatewayBackup = $request->input('gateway_backup');
+    // Validasi input
+    if (empty($primaryGateway) || empty($backupGateway)) {
+        return response()->json(['error' => 'Primary and backup gateway are required.'], 400);
+    }
 
     try {
-         $client = $this->getClient();
+        // Inisialisasi koneksi RouterOS API
+        $client = $this->getClientLogin();
 
-        $routeMainQuery = (new Query('/ip/route/print'))->where('gateway', $gatewayMain);
-        $routeMain = $client->query($routeMainQuery)->read();
+        // Cek apakah gateway ada dalam daftar route
+        $routeQuery = new Query('/ip/route/print');
+        $routes = $client->query($routeQuery)->read();
 
-        $routeBackupQuery = (new Query('/ip/route/print'))->where('gateway', $gatewayBackup);
-        $routeBackup = $client->query($routeBackupQuery)->read();
+        $primaryExists = false;
+        $backupExists = false;
 
-        if (!empty($routeMain)) {
-            $deleteRouteMainQuery = (new Query('/ip/route/remove'))->equal('.id', $routeMain[0]['.id']);
-            $client->query($deleteRouteMainQuery)->read();
+        foreach ($routes as $route) {
+            if (isset($route['gateway']) && $route['gateway'] === $primaryGateway) {
+                $primaryExists = true;
+            }
+            if (isset($route['gateway']) && $route['gateway'] === $backupGateway) {
+                $backupExists = true;
+            }
         }
 
-        if (!empty($routeBackup)) {
-            $deleteRouteBackupQuery = (new Query('/ip/route/remove'))->equal('.id', $routeBackup[0]['.id']);
-            $client->query($deleteRouteBackupQuery)->read();
+        // Jika salah satu gateway tidak ditemukan, kembalikan error
+        if (!$primaryExists || !$backupExists) {
+            return response()->json([
+                'error' => 'One or both gateways not found in the route table.',
+                'primary_exists' => $primaryExists,
+                'backup_exists' => $backupExists
+            ], 404);
         }
 
-        $netwatchMainQuery = (new Query('/tool/netwatch/print'))->where('host', $gatewayMain);
-        $netwatchMain = $client->query($netwatchMainQuery)->read();
+        // Script untuk kondisi up (primary gateway aktif)
+        $upScript = '/ip route set [find gateway=' . $primaryGateway . '] distance=1' . "\n" .
+                   '/ip route set [find gateway=' . $backupGateway . '] distance=2';
 
-        $netwatchBackupQuery = (new Query('/tool/netwatch/print'))->where('host', $gatewayBackup);
-        $netwatchBackup = $client->query($netwatchBackupQuery)->read();
+        // Script untuk kondisi down (primary gateway nonaktif)
+        $downScript = '/ip route set [find gateway=' . $primaryGateway . '] distance=2' . "\n" .
+                     '/ip route set [find gateway=' . $backupGateway . '] distance=1';
 
-        if (!empty($netwatchMain)) {
-            $deleteNetwatchMainQuery = (new Query('/tool/netwatch/remove'))->equal('.id', $netwatchMain[0]['.id']);
-            $client->query($deleteNetwatchMainQuery)->read();
-        }
+        // 1. Tambahkan Netwatch untuk monitoring ICMP (ping)
+        $addIcmpNetwatch = new Query('/tool/netwatch/add');
+        $addIcmpNetwatch->equal('host', $primaryGateway);
+        $addIcmpNetwatch->equal('type', 'icmp');
+        $addIcmpNetwatch->equal('interval', '00:00:10');
+        $addIcmpNetwatch->equal('timeout', '500ms');
+        $addIcmpNetwatch->equal('up-script', $upScript);
+        $addIcmpNetwatch->equal('down-script', $downScript);
+        $client->query($addIcmpNetwatch)->read();
 
-        if (!empty($netwatchBackup)) {
-            $deleteNetwatchBackupQuery = (new Query('/tool/netwatch/remove'))->equal('.id', $netwatchBackup[0]['.id']);
-            $client->query($deleteNetwatchBackupQuery)->read();
-        }
+        // 2. Tambahkan Netwatch untuk monitoring HTTPS GET
+        // $addHttpNetwatch = new Query('/tool/netwatch/add');
+        // $addHttpNetwatch->equal('host', $primaryGateway);
+        // $addHttpNetwatch->equal('type', 'https-get'); // Sesuai dengan gambar, ini https-get
+        // $addHttpNetwatch->equal('port', '443'); // Port default untuk HTTPS
+        // $addHttpNetwatch->equal('http-codes', '200,301,302'); // Kode HTTP sukses
+        // $addHttpNetwatch->equal('thr-http-time', '2s'); // Threshold HTTP time
+        // $addHttpNetwatch->equal('interval', '00:00:10');
+        // $addHttpNetwatch->equal('timeout', '2s'); // Timeout lebih lama untuk HTTP GET
+        // $addHttpNetwatch->equal('up-script', $upScript);
+        // $addHttpNetwatch->equal('down-script', $downScript);
+        // $client->query($addHttpNetwatch)->read();
 
         return response()->json([
-            'message' => 'Konfigurasi failover berhasil dihapus.',
-            'data' => [
-                'gateway_main' => $gatewayMain,
-                'gateway_backup' => $gatewayBackup,
-            ]
+            'message' => 'Both ICMP and HTTPS-GET netwatch added successfully!',
+            'monitored_gateway' => $primaryGateway,
+            'backup_gateway' => $backupGateway,
         ]);
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-    }
-
-    public function getNetwatch()
-{
-    $client = $this->getClient();
-
-    try {
-        $query = new Query('/tool/netwatch/print');
-
-        $netwatchData = $client->query($query)->read();
-
-        return response()->json([
-            'status' => 'success',
-            'netwatch' => $netwatchData
-        ]);
 
     } catch (\Exception $e) {
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Failed to fetch netwatch: ' . $e->getMessage(),
-        ], 500);
+        return response()->json(['error' => 'Failed to connect to MikroTik: ' . $e->getMessage()], 500);
     }
-}
 
+    }
 
+    public function getLatestLogs(Request $request)
+    {
+        try {
+            // Inisialisasi koneksi RouterOS API
+            $client = $this->getClientLogin(); // Pastikan fungsi ini mengembalikan client yang sudah login
 
+            // Buat query untuk mengambil semua log
+            $query = new Query('/log/print');
+            $query->equal('.proplist', 'time,message'); // Ambil hanya waktu dan pesan
+            $logs = $client->query($query)->read();
+
+            // Ambil 5 log terbaru dari hasil yang didapat
+            $latestLogs = array_slice($logs, -5);
+
+            return response()->json([
+                'logs' => $latestLogs
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Failed to retrieve logs: ' . $e->getMessage()], 500);
+        }
+    }
 }

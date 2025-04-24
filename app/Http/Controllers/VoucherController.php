@@ -364,7 +364,6 @@ class VoucherController extends CentralController
         ]);
     }
 
-
     public function getVoucherLists()
 {
     $vouchers = DB::table('voucher_lists')->get();
