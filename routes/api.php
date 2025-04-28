@@ -94,6 +94,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::get('/mikrotik/get-data-all-profile', [ByteController::class, 'getHotspotProfile']);
     Route::post('/mikrotik/Update-byte-log', [ByteController::class, 'logApiUsageBytes']);
     Route::get('/mikrotik/get-data-users', [ByteController::class, 'getHotspotUsers']);
+    Route::post('/mikrotik/switch', [CentralController::class, 'switchConfig']);
     Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
 
     Route::get('/mikrotik/get-info', [ScriptController::class, 'getSystemInfo']);
