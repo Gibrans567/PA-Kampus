@@ -465,7 +465,7 @@ class VoucherController extends CentralController
                     // Lantai 1 -> kamar 101, 102, 103, ...
                     // Lantai 2 -> kamar 201, 202, 203, ...
                     $kamarNumber = ($lantai * 100) + $kamar;
-                    $username = "lantai" . str_pad($lantai, 2, '0', STR_PAD_LEFT) . "kamar" . $kamarNumber;
+                    $username =   "kamar" . $kamarNumber;
                     $password = $username;  // Password sama dengan username
                     $link_login = "https://hotspot.awh.co.id/login?username={$username}&password={$password}";
 
