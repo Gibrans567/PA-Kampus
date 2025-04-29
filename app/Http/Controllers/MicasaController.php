@@ -93,9 +93,6 @@ class MicasaController extends Controller
         ], 500);
     }
 }
-
-
-
     public function getUserMicasa()
 {
     try {
@@ -224,5 +221,5 @@ class MicasaController extends Controller
             'message' => 'Terjadi kesalahan: ' . $e->getMessage()
         ], 500);
     }
-}
+    }
 }
