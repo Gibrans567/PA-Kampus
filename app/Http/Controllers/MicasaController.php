@@ -40,7 +40,21 @@ class MicasaController extends Controller
         }
 
         $userId = $existingUsers[0]['.id'];
+        $password = $existingUsers[0]['password']; // Mengambil password yang ada di data pengguna
 
+        // Cek jika name dan password sama dengan no_hp
+        if ($request->has('name')) {
+            // Validasi bahwa username dan password lama masih sama (belum pernah diubah)
+            if ($no_hp !== $existingUsers[0]['name'] || $no_hp !== $password) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Maaf, Anda telah melakukan update pada username atau password. Username dan password harus sama.'
+                ], 400);
+            }
+        }
+
+
+        // Melakukan update pada user jika pengecekan valid
         $updateUserQuery = (new Query('/ip/hotspot/user/set'))
             ->equal('.id', $userId);
 
@@ -58,18 +72,29 @@ class MicasaController extends Controller
 
         $client->query($updateUserQuery)->read();
 
-        DB::table('voucher_lists')->where('name', $no_hp)
-                ->update([
-                    'name' => $request->input( 'name'),    // Update name in the database
-                    'password' => $request->input( 'name'),  // Update profile in the database
-                ]);
+        // Update database jika username dan password valid
+        if ($request->has('name')) {
+            DB::table('voucher_lists')->where('name', $no_hp)
+                    ->update([
+                        'name' => $request->input('name'),    // Update name in the database
+                        'password' => $request->input('name'),  // Update password in the database
+                    ]);
+        }
 
-        return response()->json(['message' => 'User berhasil diperbarui.'], 200);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'User berhasil diperbarui.'
+        ], 200);
 
     } catch (\Exception $e) {
-        return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Terjadi kesalahan: ' . $e->getMessage()
+        ], 500);
     }
-    }
+}
+
+
 
     public function getUserMicasa()
 {
@@ -195,5 +220,5 @@ class MicasaController extends Controller
             'message' => 'Terjadi kesalahan: ' . $e->getMessage()
         ], 500);
     }
-}
+    }
 }
