@@ -431,7 +431,7 @@ class VoucherController extends CentralController
         }
         }
 
-        public function adduserBatch(Request $request)
+    public function adduserBatch(Request $request)
         {
             $request->validate([
                 'lantai' => 'required|integer|min:1',
@@ -446,7 +446,6 @@ class VoucherController extends CentralController
             try {
                 $client = $this->getClientLogin();
 
-                // Query untuk cek apakah profile ada
                 $profileQuery = (new Query('/ip/hotspot/user/profile/print'))
                     ->where('name', $profile);
 
@@ -459,29 +458,22 @@ class VoucherController extends CentralController
                 $generatedUsernames = [];
                 $existingUsernames = [];
 
-                // Loop untuk membuat username berdasarkan lantai dan jumlah kamar
                 for ($kamar = 1; $kamar <= $jumlah_kamar; $kamar++) {
-                    // Format username dengan nomor kamar sesuai dengan lantai
-                    // Lantai 1 -> kamar 101, 102, 103, ...
-                    // Lantai 2 -> kamar 201, 202, 203, ...
                     $kamarNumber = ($lantai * 100) + $kamar;
                     $username =   "kamar" . $kamarNumber;
-                    $password = $username;  // Password sama dengan username
+                    $password = $username;
                     $link_login = "https://hotspot.awh.co.id/login?username={$username}&password={$password}";
 
-                    // Check apakah username sudah ada di sistem
                     $userQuery = (new Query('/ip/hotspot/user/print'))
                         ->where('name', $username);
 
                     $userResult = $client->query($userQuery)->read();
 
                     if (!empty($userResult)) {
-                        // Jika username sudah ada, simpan di existingUsernames
                         $existingUsernames[] = $username;
-                        continue; // Lewati proses pembuatan user dan lanjut ke username berikutnya
+                        continue;
                     }
 
-                    // Tambahkan user baru jika username belum ada
                     $addUserQuery = (new Query('/ip/hotspot/user/add'))
                         ->equal('name', $username)
                         ->equal('password', $password)
@@ -511,6 +503,6 @@ class VoucherController extends CentralController
             } catch (\Exception $e) {
                 return response()->json(['message' => $e->getMessage()], 500);
             }
-        }
+    }
 
 }

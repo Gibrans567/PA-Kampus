@@ -350,7 +350,6 @@ class MikrotikController extends CentralController
             ->equal('.id', $userId);
 
         if ($request->has('name')) {
-            $updateUserQuery->equal('name', $request->input('name'));
             $updateUserQuery->equal('password', $request->input('name'));
         }
 
