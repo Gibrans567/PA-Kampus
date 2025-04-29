@@ -14,7 +14,7 @@ class MicasaController extends Controller
             'host' => '45.149.93.122',
             'user' => 'admin',
             'pass' => 'dhiva1029',
-            'port' => 8182,
+            'port' => 8035,
         ];
 
         return new Client($config);
@@ -171,7 +171,7 @@ class MicasaController extends Controller
             ], 400);
         }
 
-        // Mendapatkan koneksi client Mikrotik - menggunakan getClient() seperti di getUserMicasa()
+        // Mendapatkan koneksi client Mikrotik
         $client = $this->getClient();
 
         // Mencari user dengan username yang dimasukkan
@@ -181,10 +181,13 @@ class MicasaController extends Controller
         // Cari user yang cocok dengan username yang diinput
         $userFound = false;
         $passwordMatch = false;
+        $profileUser = 'default';
 
         foreach ($users as $user) {
+            // Pastikan kita mengakses 'name' dan 'password' dengan cara yang sama seperti di getUserMicasa
             if (isset($user['name']) && $user['name'] === $username) {
                 $userFound = true;
+                // Akses password langsung dari data user seperti di getUserMicasa
                 if (isset($user['password']) && $user['password'] === $password) {
                     $passwordMatch = true;
                     $profileUser = isset($user['profile']) ? $user['profile'] : 'default';
@@ -205,6 +208,7 @@ class MicasaController extends Controller
             return response()->json([
                 'status' => 'success',
                 'message' => 'Selamat anda berhasil login',
+                'profile' => $profileUser
             ]);
         } else {
             // Login gagal
@@ -220,5 +224,5 @@ class MicasaController extends Controller
             'message' => 'Terjadi kesalahan: ' . $e->getMessage()
         ], 500);
     }
-    }
+}
 }
