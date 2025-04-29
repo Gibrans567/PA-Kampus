@@ -9,6 +9,7 @@ use App\Http\Controllers\FailOverController;
 use App\Http\Controllers\FileController;
 use App\Http\Controllers\HotspotProfileController;
 use App\Http\Controllers\MenuController;
+use App\Http\Controllers\MicasaController;
 use App\Http\Controllers\MikrotikController;
 use App\Http\Controllers\OpenVPNController;
 use App\Http\Controllers\ScriptController;
@@ -120,6 +121,9 @@ Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
 });
 
 
+Route::post('/mikrotik/hotspot-micasa/{no_hp}', [MicasaController::class, 'EditMicasa']);
+Route::get('/mikrotik/get-user-micasa', [MicasaController::class, 'getUserMicasa']);
+Route::post('/mikrotik/login-micasa', [MicasaController::class, 'loginMicasa']);
 
 Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer']);
 
