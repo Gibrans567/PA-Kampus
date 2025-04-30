@@ -6,9 +6,9 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use RouterOS\Query;
 
-class MicasaController extends Controller
+class MicasaController extends CentralController
 {
-    protected function getClient()
+    protected function getClientMicasa()
     {
         $config = [
             'host' => '45.149.93.122',
@@ -30,7 +30,7 @@ class MicasaController extends Controller
     ]);
 
     try {
-        $client = $this->getClient();
+        $client = $this->getClientMicasa();
 
         $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
         $existingUsers = $client->query($checkQuery)->read();
@@ -97,7 +97,7 @@ class MicasaController extends Controller
 {
     try {
         // Mendapatkan koneksi client Mikrotik
-        $client = $this->getClient();
+        $client = $this->getClientMicasa();
 
         // Mengambil data pengguna hotspot
         $userQuery = new Query('/ip/hotspot/user/print');
@@ -169,7 +169,7 @@ class MicasaController extends Controller
         }
 
         // Mendapatkan koneksi client Mikrotik
-        $client = $this->getClient();
+        $client = $this->getClientMicasa();
 
         // Mencari user dengan username yang dimasukkan
         $userQuery = new Query('/ip/hotspot/user/print');
@@ -220,6 +220,57 @@ class MicasaController extends Controller
             'status' => 'error',
             'message' => 'Terjadi kesalahan: ' . $e->getMessage()
         ], 500);
+    }
+    }
+
+    public function adminEditMicasa(Request $request, $no_hp)
+{
+    // Validasi input
+    $request->validate([
+        'name' => 'sometimes|required|string|max:255',
+        'profile' => 'nullable|string|max:50',
+        'comment' => 'sometimes|required|string|max:255',
+    ]);
+
+    try {
+        $client = $this->getClientLogin();
+
+        $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
+        $existingUsers = $client->query($checkQuery)->read();
+
+        if (empty($existingUsers)) {
+            return response()->json(['message' => 'User tidak ditemukan.'], 404);
+        }
+
+        $userId = $existingUsers[0]['.id'];
+
+        $updateUserQuery = (new Query('/ip/hotspot/user/set'))
+            ->equal('.id', $userId);
+
+        if ($request->has('name')) {
+            $updateUserQuery->equal('password', $request->input('name'));
+        }
+
+        if ($request->has('profile')) {
+            $updateUserQuery->equal('profile', $request->input('profile'));
+        }
+
+        if ($request->has('comment')) {
+            $updateUserQuery->equal('comment', $request->input('comment'));
+        }
+
+        $client->query($updateUserQuery)->read();
+
+        DB::table('voucher_lists')->where('name', $no_hp)
+                ->update([
+                    'name' => $request->input( 'name'),    // Update name in the database
+                    'password' => $request->input( 'name'),  // Update profile in the database
+                ]);
+
+        return response()->json(['message' => 'User berhasil diperbarui.'], 200);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
     }
 }
