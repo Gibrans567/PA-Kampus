@@ -23,7 +23,7 @@ class ScriptController extends CentralController
 
     $scriptName = $request->input('script_name');
     $schedulerName = $request->input('scheduler_name');
-    $interval = $request->input('1m');
+    $interval = $request->input('2m');
     $tenantId = $request->input('tenant_id');
 
     // Script dengan dynamic tenant ID

@@ -114,7 +114,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::delete('/bandwidth-manager/delete/{name}', [ScriptController::class, 'deleteBandwidthManager']);
 
     Route::post('/mikrotik/edit-admin-micasa/{no_hp}', [MicasaController::class, 'adminEditMicasa']);
-
+    Route::get('/mikrotik/get-active-micasa', [MicasaController::class, 'getActiveUsersMicasa']);
 
 
 });
