@@ -127,6 +127,7 @@ Route::middleware(['auth:sanctum','role:admin,pegawai'])->group(function () {
 Route::post('/mikrotik/hotspot-micasa/{no_hp}', [MicasaController::class, 'EditMicasa']);
 Route::get('/mikrotik/get-user-micasa', [MicasaController::class, 'getUserMicasa']);
 Route::post('/mikrotik/login-micasa', [MicasaController::class, 'loginMicasa']);
+Route::delete('/mikrotik/delete-mac-cookie', [MicasaController::class, 'getActiveUsersAndCleanCookiesMicasa']);
 
 Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer']);
 

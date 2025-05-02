@@ -63,10 +63,9 @@ class HotspotProfileController extends CentralController
             $addQuery = (new Query('/ip/hotspot/user/profile/add'))
                 ->equal('name', $profile_name)
                 ->equal('shared-users', $shared_users)
-                ->equal('keepalive-timeout', '1m')
-                ->equal('idle-timeout', '10s');
-
-
+                ->equal('keepalive-timeout', '1d')
+                ->equal('idle-timeout', '1d')
+                ->equal('max-cookies', '1d');
 
             if (!empty($rate_limit)) {
                 $addQuery->equal('rate-limit', $rate_limit);

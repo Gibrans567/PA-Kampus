@@ -233,7 +233,7 @@ class MicasaController extends CentralController
     ]);
 
     try {
-        $client = $this->getClientLogin();
+        $client = $this->getClientMicasa();
 
         $checkQuery = (new Query('/ip/hotspot/user/print'))->where('name', $no_hp);
         $existingUsers = $client->query($checkQuery)->read();
@@ -261,11 +261,11 @@ class MicasaController extends CentralController
 
         $client->query($updateUserQuery)->read();
 
-        DB::table('voucher_lists')->where('name', $no_hp)
-                ->update([
-                    'name' => $request->input( 'name'),    // Update name in the database
-                    'password' => $request->input( 'name'),  // Update profile in the database
-                ]);
+        // DB::table('voucher_lists')->where('name', $no_hp)
+        //         ->update([
+        //             'name' => $request->input( 'name'),    // Update name in the database
+        //             'password' => $request->input( 'name'),  // Update profile in the database
+        //         ]);
 
         return response()->json(['message' => 'User berhasil diperbarui.'], 200);
 
@@ -273,4 +273,85 @@ class MicasaController extends CentralController
         return response()->json(['error' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
     }
+
+    public function getActiveUsersAndCleanCookiesMicasa()
+{
+    try {
+        // Mendapatkan koneksi client Mikrotik
+        $client = $this->getClientMicasa();
+
+        // Mengambil data pengguna aktif
+        $activeQuery = new Query('/ip/hotspot/active/print');
+        $activeUsers = $client->query($activeQuery)->read();
+
+        // Modifikasi struktur data pengguna aktif
+        $modifiedActiveUsers = array_map(function ($activeUser) {
+            $newUser = [];
+            foreach ($activeUser as $key => $value) {
+                $newKey = str_replace('.id', 'id', $key);
+                $newUser[$newKey] = $value;
+            }
+
+            // Pastikan properti penting selalu ada
+            $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
+            $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
+            $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
+            $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
+            $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
+            $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
+            $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
+
+            return $newUser;
+        }, $activeUsers);
+
+        // Membuat array dari MAC address pengguna aktif
+        $activeMacAddresses = [];
+        foreach ($activeUsers as $activeUser) {
+            if (isset($activeUser['mac-address'])) {
+                $activeMacAddresses[] = $activeUser['mac-address'];
+            }
+        }
+
+        // Mengambil data MAC cookies
+        $cookieQuery = new Query('/ip/hotspot/cookie/print');
+        $cookies = $client->query($cookieQuery)->read();
+
+        $deletedCount = 0;
+        $remainingCount = 0;
+
+        // Memeriksa setiap cookie
+        foreach ($cookies as $cookie) {
+            if (isset($cookie['mac-address'])) {
+                $macAddress = $cookie['mac-address'];
+
+                // Jika MAC address tidak ada di daftar pengguna aktif, hapus cookie
+                if (!in_array($macAddress, $activeMacAddresses)) {
+                    if (isset($cookie['.id'])) {
+                        $removeQuery = new Query('/ip/hotspot/cookie/remove');
+                        $removeQuery->equal('.id', $cookie['.id']);
+                        $client->query($removeQuery)->read();
+                        $deletedCount++;
+                    }
+                } else {
+                    $remainingCount++;
+                }
+            }
+        }
+
+        // Mengembalikan response dalam format JSON
+        return response()->json([
+            'status' => 'success',
+            'total_active_users' => count($modifiedActiveUsers),
+            'active_users' => $modifiedActiveUsers,
+            'cookies_info' => [
+                'total_cookies_before' => count($cookies),
+                'cookies_deleted' => $deletedCount,
+                'cookies_remaining' => $remainingCount
+            ]
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+}
 }
