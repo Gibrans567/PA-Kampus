@@ -353,46 +353,46 @@ class MicasaController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
-
-public function getActiveUsersMicasa()
-{
-    try {
-        // Mendapatkan koneksi client Mikrotik
-        $client = $this->getClientLogin();
-
-        // Mengambil data pengguna aktif saja
-        $activeQuery = new Query('/ip/hotspot/active/print');
-        $activeUsers = $client->query($activeQuery)->read();
-
-        // Modifikasi struktur data pengguna aktif
-        $modifiedActiveUsers = array_map(function ($activeUser) {
-            $newUser = [];
-            foreach ($activeUser as $key => $value) {
-                $newKey = str_replace('.id', 'id', $key);
-                $newUser[$newKey] = $value;
-            }
-
-            // Pastikan properti penting selalu ada
-            $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
-            $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
-            $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
-            $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
-            $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
-            $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
-            $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
-
-            return $newUser;
-        }, $activeUsers);
-
-        // Mengembalikan response dalam format JSON
-        return response()->json([
-            'total_active_users' => count($modifiedActiveUsers),
-            'active_users' => $modifiedActiveUsers
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
     }
-}
+
+    public function getActiveUsersMicasa()
+    {
+        try {
+            // Mendapatkan koneksi client Mikrotik
+            $client = $this->getClientLogin();
+
+            // Mengambil data pengguna aktif saja
+            $activeQuery = new Query('/ip/hotspot/active/print');
+            $activeUsers = $client->query($activeQuery)->read();
+
+            // Modifikasi struktur data pengguna aktif
+            $modifiedActiveUsers = array_map(function ($activeUser) {
+                $newUser = [];
+                foreach ($activeUser as $key => $value) {
+                    $newKey = str_replace('.id', 'id', $key);
+                    $newUser[$newKey] = $value;
+                }
+
+                // Pastikan properti penting selalu ada
+                $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
+                $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
+                $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
+                $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
+                $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
+                $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
+                $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
+
+                return $newUser;
+            }, $activeUsers);
+
+            // Mengembalikan response dalam format JSON
+            return response()->json([
+                'total_active_users' => count($modifiedActiveUsers),
+                'active_users' => $modifiedActiveUsers
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
 }
