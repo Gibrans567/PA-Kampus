@@ -178,11 +178,10 @@ class ByteController extends CentralController
             return response()->json(['error' => 'Tanggal awal dan akhir harus disediakan'], 400);
         }
 
-
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
-        $usersQuery = DB::table('user_bytes_log')
+        $users = DB::table('user_bytes_log')
             ->select(
                 'user_name',
                 'role',
@@ -192,29 +191,21 @@ class ByteController extends CentralController
             )
             ->whereBetween('timestamp', [$startDate, $endDate])
             ->groupBy('user_name', 'role')
-            ->orderBy(DB::raw('SUM(bytes_in) + SUM(bytes_out)'), 'desc');
+            ->orderBy(DB::raw('SUM(bytes_in) + SUM(bytes_out)'), 'desc')
+            ->get();
 
-        $paginatedUsers = $usersQuery->paginate(5);
+        $totalBytesIn = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_in');
 
+        $totalBytesOut = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_out');
 
-        $users = $paginatedUsers->items();
-
-
-        $paginationInfo = [
-            'current_page' => $paginatedUsers->currentPage(),
-            'last_page' => $paginatedUsers->lastPage(),
-            'per_page' => $paginatedUsers->perPage(),
-            'total' => $paginatedUsers->total(),
-        ];
-
-        $totalBytesIn = $usersQuery->sum('bytes_in');
-        $totalBytesOut = $usersQuery->sum('bytes_out');
         $totalBytes = $totalBytesIn + $totalBytesOut;
-
 
         return response()->json([
             'users' => $users,
-            'pagination' => $paginationInfo,
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
@@ -222,7 +213,7 @@ class ByteController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
 
     public function getHotspotUsersByDateRange1(Request $request)
 {

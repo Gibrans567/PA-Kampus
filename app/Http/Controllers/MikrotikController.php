@@ -346,6 +346,26 @@ class MikrotikController extends CentralController
 
         $userId = $existingUsers[0]['.id'];
 
+        // Check if the new name is already in use by another user
+        if ($request->has('name') && $request->input('name') !== $no_hp) {
+            $nameCheckQuery = (new Query('/ip/hotspot/user/print'))->where('name', $request->input('name'));
+            $nameExists = $client->query($nameCheckQuery)->read();
+
+            if (!empty($nameExists)) {
+                return response()->json(['message' => 'Nama sudah digunakan'], 409);
+            }
+
+            // Also check in the database
+            $nameExistsInDB = DB::table('voucher_lists')
+                ->where('name', $request->input('name'))
+                ->where('name', '!=', $no_hp)
+                ->exists();
+
+            if ($nameExistsInDB) {
+                return response()->json(['message' => 'Nama sudah digunakan'], 409);
+            }
+        }
+
         $updateUserQuery = (new Query('/ip/hotspot/user/set'))
             ->equal('.id', $userId);
 
@@ -364,11 +384,13 @@ class MikrotikController extends CentralController
 
         $client->query($updateUserQuery)->read();
 
-        DB::table('voucher_lists')->where('name', $no_hp)
+        if ($request->has('name')) {
+            DB::table('voucher_lists')->where('name', $no_hp)
                 ->update([
-                    'name' => $request->input( 'name'),    // Update name in the database
-                    'password' => $request->input( 'name'),  // Update profile in the database
+                    'name' => $request->input('name'),    // Update name in the database
+                    'password' => $request->input('name'),  // Update password in the database
                 ]);
+        }
 
         return response()->json(['message' => 'User berhasil diperbarui.'], 200);
 

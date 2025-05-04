@@ -90,7 +90,7 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::delete('/mikrotik/delete-lease/{address}', [DHCPController::class, 'deleteDhcpLeaseAndIpBindingByAddress']);
 
     Route::post('/mikrotik/get-data-by-date', [ByteController::class, 'getHotspotUsersByDateRange1']);
-    Route::post('/mikrotik/get-data-by-date-pagi', [ByteController::class, 'getHotspotUsersByDateRangeWithLoginCheck']);
+    Route::post('/mikrotik/get-data-by-date-full', [ByteController::class, 'getHotspotUsersByDateRangeWithLoginCheck']);
     Route::post('/mikrotik/get-data-by-date-role', [ByteController::class, 'getHotspotUsersByUniqueRole']);
     Route::get('/mikrotik/get-data-all-profile', [ByteController::class, 'getHotspotProfile']);
     Route::post('/mikrotik/Update-byte-log', [ByteController::class, 'logApiUsageBytes']);
