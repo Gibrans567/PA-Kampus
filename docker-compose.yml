@@ -57,14 +57,15 @@ services:
     container_name: db
     restart: unless-stopped
     environment:
-      MYSQL_ALLOW_EMPTY_PASSWORD: "true"
       MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD} 
     volumes:
       - dbdata:/var/lib/mysql
     networks:
       - app-network
     ports:
-      - "3306:3306"
+      - "3307:3307"
 
   redis:
     image: redis:alpine
@@ -77,6 +78,7 @@ services:
 
 volumes:
   dbdata:
+    driver: local
 
 networks:
   app-network:

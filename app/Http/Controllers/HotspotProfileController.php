@@ -17,16 +17,13 @@ class HotspotProfileController extends CentralController
         'link' => 'nullable|string',
     ]);
 
-
     $profile_name = $request->input('profile_name');
     $shared_users = $request->input('shared_users');
     $rate_limit = $request->input('rate_limit');
     $link = $request->input('link');
 
     try {
-
-         $client = $this->getClientLogin();
-
+        $client = $this->getClientLogin();
 
         $checkQuery = (new Query('/ip/hotspot/user/profile/print'))
             ->where('name', $profile_name);
@@ -38,7 +35,6 @@ class HotspotProfileController extends CentralController
                 ->where('name', $profile_name)
                 ->exists();
 
-
             if (!$existingLink) {
                 DB::table('user_profile_link')->insert([
                     'name' => $profile_name,
@@ -47,31 +43,27 @@ class HotspotProfileController extends CentralController
                     'updated_at' => now(),
                 ]);
 
-                // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-                // $hotspotController->getHotspotProfile();
-
                 return response()->json([
                     'message' => 'Profile sudah ada, tapi link-nya belum ada. Saya tambahin dulu ya'
                 ], 200);
             }
-
-            // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-            // $hotspotController->getHotspotUsers1();
 
             return response()->json(['message' => 'Profile dan link sudah ada, tidak ada perubahan yang dilakukan'], 200);
         } else {
             $addQuery = (new Query('/ip/hotspot/user/profile/add'))
                 ->equal('name', $profile_name)
                 ->equal('shared-users', $shared_users)
-                ->equal('keepalive-timeout', 'none');
-
+                ->equal('keepalive-timeout', '02:00:00')
+                ->equal('idle-timeout', '12:00:00')
+                ->equal('status-autorefresh', '00:01:00')
+                ->equal('add-mac-cookie', 'yes')
+                ->equal('mac-cookie-timeout', '06:00:00');
 
             if (!empty($rate_limit)) {
                 $addQuery->equal('rate-limit', $rate_limit);
             }
 
             $client->query($addQuery)->read();
-
 
             DB::table('user_profile_link')->insert([
                 'name' => $profile_name,
@@ -80,15 +72,12 @@ class HotspotProfileController extends CentralController
                 'updated_at' => now(),
             ]);
 
-            // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-            // $hotspotController->getHotspotProfile();
-
             return response()->json(['message' => 'Hotspot profile created successfully'], 201);
         }
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
 
     public function getHotspotProfile(Request $request)
 {

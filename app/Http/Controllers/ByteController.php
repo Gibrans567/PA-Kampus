@@ -83,24 +83,37 @@ class ByteController extends CentralController
 {
     try {
 
-          $client = $this->getClientLogin();
+        // Get the client for login (Mikrotik)
+        $client = $this->getClientLogin();
 
+        // Query to find user by phone number in Mikrotik
         $query = new Query('/ip/hotspot/user/print');
         $query->where('name', $no_hp);
 
+        // Fetch the user data from MikroTik
         $users = $client->query($query)->read();
 
         if (empty($users)) {
-            return response()->json(['message' => 'User not found'], 404);
+            // User not found in Mikrotik but may still exist in the database
+            $deletedFromDB = DB::table('voucher_lists')->where('name', $no_hp)->delete();
+
+            if ($deletedFromDB) {
+                return response()->json(['message' => 'User not found in Mikrotik, but deleted from database.']);
+            } else {
+                return response()->json(['message' => 'User not found in both MikroTik and database.'], 404);
+            }
         }
 
         $user = $users[0];
 
+        // Query for active sessions associated with the user
         $activeSessionsQuery = (new Query('/ip/hotspot/active/print'))
             ->where('user', $user['name']);
 
+        // Fetch active sessions for the user
         $activeSessions = $client->query($activeSessionsQuery)->read();
 
+        // Terminate all active sessions for the user
         foreach ($activeSessions as $session) {
             $terminateSessionQuery = (new Query('/ip/hotspot/active/remove'))
                 ->equal('.id', $session['.id']);
@@ -108,21 +121,21 @@ class ByteController extends CentralController
             $client->query($terminateSessionQuery)->read();
         }
 
+        // Delete the hotspot user from MikroTik
         $deleteQuery = (new Query('/ip/hotspot/user/remove'))->equal('.id', $user['.id']);
         $client->query($deleteQuery)->read();
 
-        if (in_array($user['profile'], ['Owner', 'staff'])) {
-            AkunKantor::where('no_hp', $no_hp)->delete();
-        }
-
-        // $hotspotController = app()->make(\App\Http\Controllers\MqttController::class);
-        // $hotspotController->getHotspotUsers1();
+        // Delete the associated records from the voucher_lists table by matching no_hp/username
+        DB::table('voucher_lists')->where('name', $no_hp)->delete();
 
         return response()->json(['message' => 'Hotspot user deleted successfully']);
+
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
+
+
 
     public function getHotspotProfile(Request $request)
 {
@@ -165,11 +178,10 @@ class ByteController extends CentralController
             return response()->json(['error' => 'Tanggal awal dan akhir harus disediakan'], 400);
         }
 
-
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
-        $usersQuery = DB::table('user_bytes_log')
+        $users = DB::table('user_bytes_log')
             ->select(
                 'user_name',
                 'role',
@@ -179,29 +191,21 @@ class ByteController extends CentralController
             )
             ->whereBetween('timestamp', [$startDate, $endDate])
             ->groupBy('user_name', 'role')
-            ->orderBy(DB::raw('SUM(bytes_in) + SUM(bytes_out)'), 'desc');
+            ->orderBy(DB::raw('SUM(bytes_in) + SUM(bytes_out)'), 'desc')
+            ->get();
 
-        $paginatedUsers = $usersQuery->paginate(5);
+        $totalBytesIn = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_in');
 
+        $totalBytesOut = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_out');
 
-        $users = $paginatedUsers->items();
-
-
-        $paginationInfo = [
-            'current_page' => $paginatedUsers->currentPage(),
-            'last_page' => $paginatedUsers->lastPage(),
-            'per_page' => $paginatedUsers->perPage(),
-            'total' => $paginatedUsers->total(),
-        ];
-
-        $totalBytesIn = $usersQuery->sum('bytes_in');
-        $totalBytesOut = $usersQuery->sum('bytes_out');
         $totalBytes = $totalBytesIn + $totalBytesOut;
-
 
         return response()->json([
             'users' => $users,
-            'pagination' => $paginationInfo,
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
@@ -209,7 +213,7 @@ class ByteController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
 
     public function getHotspotUsersByDateRange1(Request $request)
 {

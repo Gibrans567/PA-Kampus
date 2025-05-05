@@ -208,7 +208,7 @@ class DHCPController extends CentralController
 
          $client = $this->getClientLogin();
     try {
-        $dhcpQuery = new Query('/ip/dhcp-server/print');
+        $dhcpQuery = new Query('/ip/dhcp-client/print');
         $dhcpServers = $client->query($dhcpQuery)->read();
 
         $interfaceQuery = new Query('/interface/print');

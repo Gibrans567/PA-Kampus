@@ -48,7 +48,7 @@ class OpenVPNController extends CentralController
     }
     }
 
-    public function configureVpnServer1(Request $request)
+    public function configureVpnServer(Request $request)
 {
     $validator = Validator::make($request->all(), [
         'username' => 'required|string|max:255',
@@ -254,6 +254,17 @@ class OpenVPNController extends CentralController
             // Eksekusi query ke Mikrotik
             $response = $client->query($query)->read();
 
+            // Check for specific error message in the response
+            if (isset($response['after']) && isset($response['after']['message']) &&
+                $response['after']['message'] == "input does not match any value of interface") {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Input does not match any value of interface.',
+                    'data' => null
+                ], 400);  // Using 400 as a bad request error
+            }
+
+            // If response is valid
             Log::info('NAT masquerade berhasil ditambahkan', [
                 'command' => $command,
                 'parsed_params' => $params,
@@ -262,7 +273,7 @@ class OpenVPNController extends CentralController
 
             return response()->json([
                 'success' => true,
-                'message' => 'NAT masquerade berhasil ditambahkan',
+                'message' => 'NAT masquerade berhasil ditambahkan', 
                 'data' => $response
             ]);
         } catch (Exception $e) {
@@ -275,6 +286,8 @@ class OpenVPNController extends CentralController
             ], 500);
         }
     }
+
+
 
     public function getInterfaceLists()
     {
@@ -294,21 +307,6 @@ class OpenVPNController extends CentralController
                 'data' => null
             ];
         }
-    }
-
-    public function checkVpnStatus()
-{
-    $client = new Client([
-        'host' => '192.168.88.1', // Ganti dengan IP MikroTik
-        'user' => 'admin',
-        'pass' => 'password',
-        'port' => 8728, // API port MikroTik
-    ]);
-
-    $query = new Query('/interface ovpn-server server print');
-    $response = $client->query($query)->read();
-
-    return response()->json($response);
     }
 
 }
