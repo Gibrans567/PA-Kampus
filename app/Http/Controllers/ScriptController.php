@@ -27,12 +27,15 @@ class ScriptController extends CentralController
     $schedulerName = $request->input('scheduler_name');
     $tenantId = $request->input('tenant_id');
 
+    // Prepend 'netpto_' to tenantId
+    $tenantIdWithPrefix = 'netpto_' . $tenantId;
+
     // Set default interval to 5m if not provided by the user
     $interval = $request->input('interval', '5m'); // '5m' is the default value
 
     // Script dengan dynamic tenant ID
     $scriptSource = "
-    :local tenantId \"$tenantId\"
+    :local tenantId \"$tenantIdWithPrefix\"
     :local url1 (\"https://netpro.blog/api/delete-voucher-all-tenant?tenant_id=\" . \$tenantId)
     :local response1 [/tool fetch url=\$url1 mode=https http-method=post output=user as-value]
     :put (\$response1->\"data\")
@@ -43,7 +46,7 @@ class ScriptController extends CentralController
         $client = $config;
 
         // Log the script content for debugging
-        Log::info("Adding script: " . $scriptName . " with source: " . $scriptSource);
+        \Log::info("Adding script: " . $scriptName . " with source: " . $scriptSource);
 
         $addScriptQuery = new Query('/system/script/add');
         $addScriptQuery
@@ -52,7 +55,7 @@ class ScriptController extends CentralController
         $client->query($addScriptQuery)->read();
 
         // Log the scheduler parameters for debugging
-        Log::info("Adding scheduler: " . $schedulerName . " with interval: " . $interval);
+        \Log::info("Adding scheduler: " . $schedulerName . " with interval: " . $interval);
 
         $addSchedulerQuery = new Query('/system/scheduler/add');
         $addSchedulerQuery
@@ -66,6 +69,7 @@ class ScriptController extends CentralController
         return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
     }
+
 
 
     public function getSystemInfo()
