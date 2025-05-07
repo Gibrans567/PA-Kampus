@@ -28,7 +28,7 @@ class ScriptController extends CentralController
     $tenantId = $request->input('tenant_id');
 
     // Prepend 'netpto_' to tenantId
-    $tenantIdWithPrefix = 'netpto_' . $tenantId;
+    $tenantIdWithPrefix = 'netpro_' . $tenantId;
 
     // Set default interval to 5m if not provided by the user
     $interval = $request->input('interval', '5m'); // '5m' is the default value
