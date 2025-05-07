@@ -46,7 +46,7 @@ class ScriptController extends CentralController
         $client = $config;
 
         // Log the script content for debugging
-        \Log::info("Adding script: " . $scriptName . " with source: " . $scriptSource);
+        Log::info("Adding script: " . $scriptName . " with source: " . $scriptSource);
 
         $addScriptQuery = new Query('/system/script/add');
         $addScriptQuery
@@ -55,7 +55,7 @@ class ScriptController extends CentralController
         $client->query($addScriptQuery)->read();
 
         // Log the scheduler parameters for debugging
-        \Log::info("Adding scheduler: " . $schedulerName . " with interval: " . $interval);
+        Log::info("Adding scheduler: " . $schedulerName . " with interval: " . $interval);
 
         $addSchedulerQuery = new Query('/system/scheduler/add');
         $addSchedulerQuery

@@ -356,6 +356,7 @@ class VoucherController extends CentralController
 
             $this->deleteExpiredHotspotUsers($mikrotikConfig);
             $this->UpdateData($mikrotikConfig);
+            $this->updateAllHotspotUsersByPhoneNumber($mikrotikConfig);
         }
 
         return response()->json([
