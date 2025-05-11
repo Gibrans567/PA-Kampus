@@ -346,16 +346,25 @@ class ByteController extends CentralController
 
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
+        // Tambahan: hitung total user unik tanpa duplikat
+        $totalUniqueUsers = DB::table('user_bytes_log')
+            ->select('user_name')
+            ->distinct()
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->count();
+
         return response()->json([
             'users' => $users,
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
+            'total_unique_users' => $totalUniqueUsers, // <-- ditambahkan di sini
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
+    }
+
 
     public function getHotspotUsersByDateRange1(Request $request)
 {
