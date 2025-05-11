@@ -323,6 +323,7 @@ class ByteController extends CentralController
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
+        // Ambil data users per tanggal
         $users = DB::table('user_bytes_log')
             ->select(
                 'user_name',
@@ -336,6 +337,7 @@ class ByteController extends CentralController
             ->orderBy(DB::raw('SUM(bytes_in) + SUM(bytes_out)'), 'desc')
             ->get();
 
+        // Hitung total bytes masuk dan keluar
         $totalBytesIn = DB::table('user_bytes_log')
             ->whereBetween('timestamp', [$startDate, $endDate])
             ->sum('bytes_in');
@@ -346,24 +348,37 @@ class ByteController extends CentralController
 
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
-        // Tambahan: hitung total user unik tanpa duplikat
-        $totalUniqueUsers = DB::table('user_bytes_log')
-            ->select('user_name')
-            ->distinct()
+        // Hitung total user per hari (DISTINCT berdasarkan user_name)
+        $totalUsersPerDay = DB::table('user_bytes_log')
+            ->select(
+                DB::raw('DATE(timestamp) as date'),
+                DB::raw('COUNT(DISTINCT user_name) as total_users')
+            )
             ->whereBetween('timestamp', [$startDate, $endDate])
-            ->count();
+            ->groupBy(DB::raw('DATE(timestamp)'))
+            ->orderBy('date')
+            ->get();
+
+        // Menghindari duplikasi user di query sebelumnya
+        $uniqueUsers = DB::table('user_bytes_log')
+            ->distinct()
+            ->select('user_name')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->get();
 
         return response()->json([
             'users' => $users,
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
-            'total_unique_users' => $totalUniqueUsers, // <-- ditambahkan di sini
+            'total_users_per_day' => $totalUsersPerDay,
+            'total_unique_users' => $uniqueUsers->count(),
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
 
     public function getHotspotUsersByDateRange1(Request $request)
