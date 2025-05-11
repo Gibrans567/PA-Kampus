@@ -462,6 +462,7 @@ class ByteController extends CentralController
         $dbTable = 'user_bytes_log';
         $columnName = 'user_name';
 
+        // Query total data per tanggal
         $query = DB::table($dbTable)
             ->select(
                 DB::raw('DATE(timestamp) as date'),
@@ -484,6 +485,7 @@ class ByteController extends CentralController
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
         foreach ($logs as $log) {
+            // Cari user terbesar per hari
             $largestUserQuery = DB::table($dbTable)
                 ->select($columnName, DB::raw('(bytes_in + bytes_out) as total_user_bytes'))
                 ->whereDate('timestamp', $log->date);
@@ -494,15 +496,23 @@ class ByteController extends CentralController
 
             $largestUser = $largestUserQuery->orderBy('total_user_bytes', 'desc')->first();
 
-            $largestUserPercentage = ($largestUser && $log->total_bytes > 0) ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100) : 0;
+            $largestUserPercentage = ($largestUser && $log->total_bytes > 0)
+                ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100)
+                : 0;
 
             $log->largest_user = [
                 $columnName => $largestUser->$columnName ?? null,
                 'percentage' => $largestUserPercentage . "%"
             ];
 
+            // Semua user per tanggal (grup berdasarkan user_name)
             $usersQuery = DB::table($dbTable)
-                ->select($columnName, DB::raw('SUM(bytes_in) as total_bytes_in'), DB::raw('SUM(bytes_out) as total_bytes_out'), DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes'))
+                ->select(
+                    $columnName,
+                    DB::raw('SUM(bytes_in) as total_bytes_in'),
+                    DB::raw('SUM(bytes_out) as total_bytes_out'),
+                    DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
+                )
                 ->whereDate('timestamp', $log->date)
                 ->groupBy($columnName)
                 ->orderBy('total_user_bytes', 'desc');
@@ -511,12 +521,10 @@ class ByteController extends CentralController
                 $usersQuery->where('role', $role);
             }
 
-            $users = $usersQuery->get();
-
-            $log->all_users = $users;
+            $log->all_users = $usersQuery->get();
         }
 
-        // Tambahan: total user unik dalam rentang waktu
+        // ✅ Hitung total user unik hanya 1x dalam seluruh periode
         $uniqueUsersQuery = DB::table($dbTable)
             ->select($columnName)
             ->distinct()
@@ -526,7 +534,7 @@ class ByteController extends CentralController
             $uniqueUsersQuery->where('role', $role);
         }
 
-        $totalUniqueUsers = $uniqueUsersQuery->count();
+        $totalUniqueUsers = $uniqueUsersQuery->count($columnName);
 
         $this->logApiUsageBytes();
 
@@ -535,7 +543,7 @@ class ByteController extends CentralController
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
-            'total_users' => $totalUniqueUsers, // Tambahan
+            'total_users' => $totalUniqueUsers, // Sudah dihitung hanya sekali
             'role' => $role,
             'dbTable' => $dbTable
         ]);
@@ -543,6 +551,7 @@ class ByteController extends CentralController
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
 
 
