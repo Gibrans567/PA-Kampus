@@ -516,6 +516,18 @@ class ByteController extends CentralController
             $log->all_users = $users;
         }
 
+        // Tambahan: total user unik dalam rentang waktu
+        $uniqueUsersQuery = DB::table($dbTable)
+            ->select($columnName)
+            ->distinct()
+            ->whereBetween('timestamp', [$startDate, $endDate]);
+
+        if ($role !== "All") {
+            $uniqueUsersQuery->where('role', $role);
+        }
+
+        $totalUniqueUsers = $uniqueUsersQuery->count();
+
         $this->logApiUsageBytes();
 
         return response()->json([
@@ -523,13 +535,15 @@ class ByteController extends CentralController
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
+            'total_users' => $totalUniqueUsers, // Tambahan
             'role' => $role,
-            'dbTable' => $dbTable // Returning table name
+            'dbTable' => $dbTable
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
 
     public function logApiUsageBytes()
