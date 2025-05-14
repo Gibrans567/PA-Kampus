@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AkunKantor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use RouterOS\Query;
 
 class ByteController extends CentralController
@@ -12,72 +13,214 @@ class ByteController extends CentralController
     public function getHotspotUsers()
 {
     try {
+        // Pastikan client berhasil dibuat
+        $client = $this->getClientLogin();
+        if (!$client) {
+            return response()->json(['error' => 'Gagal terhubung ke MikroTik'], 500);
+        }
 
-         $client = $this->getClientLogin();
-
+        // Get all hotspot users
         $userQuery = new Query('/ip/hotspot/user/print');
         $users = $client->query($userQuery)->read();
 
+        // Get active hotspot connections
         $activeQuery = new Query('/ip/hotspot/active/print');
         $activeUsers = $client->query($activeQuery)->read();
 
+        // Get hotspot profiles (which contain shared-users setting)
+        $profileQuery = new Query('/ip/hotspot/profile/print');
+        $profiles = $client->query($profileQuery)->read();
+
+        // Ambil nilai dari session atau gunakan default 0
         $totalBytesIn = session()->get('total_bytes_in', 0);
         $totalBytesOut = session()->get('total_bytes_out', 0);
 
-        $activeUsersMap = [];
-        foreach ($activeUsers as $activeUser) {
-            $username = $activeUser['user'];
-            $activeUsersMap[$username] = $activeUser;
+        // Create a map of profiles by name for quick lookup
+        $profileMap = [];
+        foreach ($profiles as $profile) {
+            if (isset($profile['name'])) {
+                $profileMap[$profile['name']] = $profile;
+            }
         }
 
-        $modifiedUsers = array_map(function ($user) use (&$totalBytesIn, &$totalBytesOut, $activeUsersMap) {
+        // Count active users per profile
+        $activeUsersByProfile = [];
+        foreach ($activeUsers as $activeUser) {
+            $server = isset($activeUser['server']) ? $activeUser['server'] : 'default';
+            if (!isset($activeUsersByProfile[$server])) {
+                $activeUsersByProfile[$server] = 0;
+            }
+            $activeUsersByProfile[$server]++;
+        }
+
+        // Calculate shared users by comparing active connections with profile limits
+        $totalActiveUsers = count($activeUsers);
+        $devicesOnSharedAccounts = 0;
+        $totalSharedUsers = 0;
+
+        foreach ($profileMap as $profileName => $profile) {
+            if (isset($activeUsersByProfile[$profileName]) && isset($profile['shared-users'])) {
+                $activeUsersCount = $activeUsersByProfile[$profileName];
+                $sharedUsersLimit = (int)$profile['shared-users'];
+
+                // If shared-users is greater than 1, this profile allows sharing
+                if ($sharedUsersLimit > 1) {
+                    // Count currently active users on this profile that are considered "shared"
+                    $devicesOnSharedAccounts += $activeUsersCount;
+                    $totalSharedUsers += min($activeUsersCount, $sharedUsersLimit);
+                }
+            }
+        }
+
+        // Create active users map for data enrichment
+        $activeUsersMap = [];
+        $activeUserCounts = [];
+        foreach ($activeUsers as $activeUser) {
+            if (isset($activeUser['user'])) {
+                $username = $activeUser['user'];
+                if (!isset($activeUserCounts[$username])) {
+                    $activeUserCounts[$username] = 1;
+                } else {
+                    $activeUserCounts[$username]++;
+                }
+                $activeUsersMap[$username] = $activeUser;
+            }
+        }
+
+        // Get profile shared-users limits
+        $profileSharedLimits = [];
+        foreach ($profiles as $profile) {
+            if (isset($profile['name']) && isset($profile['shared-users'])) {
+                $profileSharedLimits[$profile['name']] = (int)$profile['shared-users'];
+            }
+        }
+
+        // Default shared limit if not found in any profile
+        $defaultSharedLimit = 1;
+        foreach ($profileSharedLimits as $limit) {
+            if ($limit > $defaultSharedLimit) {
+                $defaultSharedLimit = $limit;
+            }
+        }
+
+        // Reset totals untuk kalkulasi ulang yang akurat
+        $currentTotalBytesIn = 0;
+        $currentTotalBytesOut = 0;
+
+        $modifiedUsers = array_map(function ($user) use (
+            &$currentTotalBytesIn,
+            &$currentTotalBytesOut,
+            $activeUsersMap,
+            $activeUserCounts,
+            $profileMap,
+            $profileSharedLimits,
+            $defaultSharedLimit
+        ) {
+            // Pastikan user memiliki nama
+            if (!isset($user['name'])) {
+                return null;
+            }
+
             $newUser = [];
             foreach ($user as $key => $value) {
                 $newKey = str_replace('.id', 'id', $key);
                 $newUser[$newKey] = $value;
             }
 
+            // Get the user's profile
+            $userProfile = isset($user['profile']) ? $user['profile'] : 'default';
+
+            // Cari profile yang cocok dengan normalisasi nama
+            $matchedProfile = null;
+            foreach ($profileMap as $profileName => $profile) {
+                // Compare case-insensitive and ignoring spaces
+                $normalizedUserProfile = strtolower(str_replace(' ', '', $userProfile));
+                $normalizedProfileName = strtolower(str_replace(' ', '', $profileName));
+
+                if ($normalizedUserProfile == $normalizedProfileName) {
+                    $matchedProfile = $profileName;
+                    break;
+                }
+            }
+
+            // Get the shared user limit
+            $sharedLimit = $defaultSharedLimit; // Default ke nilai yang ditemukan sebelumnya
+            if ($matchedProfile && isset($profileMap[$matchedProfile]['shared-users'])) {
+                $sharedLimit = (int)$profileMap[$matchedProfile]['shared-users'];
+            }
+
+            // Set data berdasarkan status aktif user
             if (isset($activeUsersMap[$user['name']])) {
                 $activeUser = $activeUsersMap[$user['name']];
                 $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
                 $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
-            } else {
-                $existingUser = DB::table('user_bytes_log')
-                    ->where('user_name', $user['name'])
-                    ->orderBy('timestamp', 'desc')
-                    ->first();
 
-                if ($existingUser) {
-                    $newUser['bytes-in'] = (int)$existingUser->bytes_in;
-                    $newUser['bytes-out'] = (int)$existingUser->bytes_out;
-                } else {
+                // Add device count as a ratio of active devices to shared limit
+                $deviceCount = $activeUserCounts[$user['name']] ?? 0;
+                $newUser['device-count'] = $deviceCount . '/' . $sharedLimit;
+
+                // Add bytes to total
+                $currentTotalBytesIn += $newUser['bytes-in'];
+                $currentTotalBytesOut += $newUser['bytes-out'];
+            } else {
+                try {
+                    $existingUser = DB::table('user_bytes_log')
+                        ->where('user_name', $user['name'])
+                        ->orderBy('timestamp', 'desc')
+                        ->first();
+
+                    if ($existingUser) {
+                        $newUser['bytes-in'] = (int)$existingUser->bytes_in;
+                        $newUser['bytes-out'] = (int)$existingUser->bytes_out;
+
+                        // Add bytes to total
+                        $currentTotalBytesIn += $newUser['bytes-in'];
+                        $currentTotalBytesOut += $newUser['bytes-out'];
+                    } else {
+                        $newUser['bytes-in'] = 0;
+                        $newUser['bytes-out'] = 0;
+                    }
+                } catch (\Exception $dbException) {
+                    // Log database error, but continue processing
+                    Log::error('Database error: ' . $dbException->getMessage());
                     $newUser['bytes-in'] = 0;
                     $newUser['bytes-out'] = 0;
                 }
-            }
 
-            $totalBytesIn += isset($newUser['bytes-in']) ? (int)$newUser['bytes-in'] : 0;
-            $totalBytesOut += isset($newUser['bytes-out']) ? (int)$newUser['bytes-out'] : 0;
+                $newUser['device-count'] = '0/' . $sharedLimit;
+            }
 
             return $newUser;
         }, $users);
 
-        $totalBytes = $totalBytesIn + $totalBytesOut;
+        // Filter out null values from the result
+        $modifiedUsers = array_filter($modifiedUsers);
 
-        session()->put('total_bytes_in', $totalBytesIn);
-        session()->put('total_bytes_out', $totalBytesOut);
+        // Update session dengan nilai terbaru
+        session()->put('total_bytes_in', $currentTotalBytesIn);
+        session()->put('total_bytes_out', $currentTotalBytesOut);
+
+        $totalBytes = $currentTotalBytesIn + $currentTotalBytesOut;
 
         return response()->json([
             'total_user' => count($modifiedUsers),
-            'users' => $modifiedUsers,
-            'total_bytes_in' => $totalBytesIn,
-            'total_bytes_out' => $totalBytesOut,
+            'users' => array_values($modifiedUsers), // Reset array keys
+            'total_bytes_in' => $currentTotalBytesIn,
+            'total_bytes_out' => $currentTotalBytesOut,
             'total_bytes' => $totalBytes,
+            'active_users' => $totalActiveUsers,
+            'shared_users' => $totalSharedUsers,
+            'devices_on_shared_accounts' => $devicesOnSharedAccounts
         ]);
     } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
+        Log::error('Hotspot Users Error: ' . $e->getMessage());
+        return response()->json([
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ], 500);
     }
-    }
+}
 
     public function deleteHotspotUserByPhoneNumber($no_hp)
 {
@@ -133,8 +276,7 @@ class ByteController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
-
+    }
 
 
     public function getHotspotProfile(Request $request)
@@ -154,7 +296,7 @@ class ByteController extends CentralController
                 $profileName = $profile['name'];
                 $result[] = [
                     'profile_name' => $profileName,
-                    'shared_users' => $profile['shared-users'] ?? 'Not set',
+                    'shared-users' => $profile['shared-users'] ?? 'Not set',
                     'rate_limit' => $profile['rate-limit'] ?? 'Not set',
                 ];
             }
@@ -181,6 +323,7 @@ class ByteController extends CentralController
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
+        // Ambil data users per tanggal
         $users = DB::table('user_bytes_log')
             ->select(
                 'user_name',
@@ -194,6 +337,7 @@ class ByteController extends CentralController
             ->orderBy(DB::raw('SUM(bytes_in) + SUM(bytes_out)'), 'desc')
             ->get();
 
+        // Hitung total bytes masuk dan keluar
         $totalBytesIn = DB::table('user_bytes_log')
             ->whereBetween('timestamp', [$startDate, $endDate])
             ->sum('bytes_in');
@@ -204,16 +348,38 @@ class ByteController extends CentralController
 
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
+        // Hitung total user per hari (DISTINCT berdasarkan user_name)
+        $totalUsersPerDay = DB::table('user_bytes_log')
+            ->select(
+                DB::raw('DATE(timestamp) as date'),
+                DB::raw('COUNT(DISTINCT user_name) as total_users')
+            )
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->groupBy(DB::raw('DATE(timestamp)'))
+            ->orderBy('date')
+            ->get();
+
+        // Menghindari duplikasi user di query sebelumnya
+        $uniqueUsers = DB::table('user_bytes_log')
+            ->distinct()
+            ->select('user_name')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->get();
+
         return response()->json([
             'users' => $users,
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
+            'total_users_per_day' => $totalUsersPerDay,
+            'total_unique_users' => $uniqueUsers->count(),
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
+    }
+
+
 
     public function getHotspotUsersByDateRange1(Request $request)
 {
@@ -320,6 +486,7 @@ class ByteController extends CentralController
         $dbTable = 'user_bytes_log';
         $columnName = 'user_name';
 
+        // Query total data per tanggal
         $query = DB::table($dbTable)
             ->select(
                 DB::raw('DATE(timestamp) as date'),
@@ -342,6 +509,7 @@ class ByteController extends CentralController
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
         foreach ($logs as $log) {
+            // Cari user terbesar per hari
             $largestUserQuery = DB::table($dbTable)
                 ->select($columnName, DB::raw('(bytes_in + bytes_out) as total_user_bytes'))
                 ->whereDate('timestamp', $log->date);
@@ -352,15 +520,23 @@ class ByteController extends CentralController
 
             $largestUser = $largestUserQuery->orderBy('total_user_bytes', 'desc')->first();
 
-            $largestUserPercentage = ($largestUser && $log->total_bytes > 0) ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100) : 0;
+            $largestUserPercentage = ($largestUser && $log->total_bytes > 0)
+                ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100)
+                : 0;
 
             $log->largest_user = [
                 $columnName => $largestUser->$columnName ?? null,
                 'percentage' => $largestUserPercentage . "%"
             ];
 
+            // Semua user per tanggal (grup berdasarkan user_name)
             $usersQuery = DB::table($dbTable)
-                ->select($columnName, DB::raw('SUM(bytes_in) as total_bytes_in'), DB::raw('SUM(bytes_out) as total_bytes_out'), DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes'))
+                ->select(
+                    $columnName,
+                    DB::raw('SUM(bytes_in) as total_bytes_in'),
+                    DB::raw('SUM(bytes_out) as total_bytes_out'),
+                    DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
+                )
                 ->whereDate('timestamp', $log->date)
                 ->groupBy($columnName)
                 ->orderBy('total_user_bytes', 'desc');
@@ -369,10 +545,20 @@ class ByteController extends CentralController
                 $usersQuery->where('role', $role);
             }
 
-            $users = $usersQuery->get();
-
-            $log->all_users = $users;
+            $log->all_users = $usersQuery->get();
         }
+
+        // ✅ Hitung total user unik hanya 1x dalam seluruh periode
+        $uniqueUsersQuery = DB::table($dbTable)
+            ->select($columnName)
+            ->distinct()
+            ->whereBetween('timestamp', [$startDate, $endDate]);
+
+        if ($role !== "All") {
+            $uniqueUsersQuery->where('role', $role);
+        }
+
+        $totalUniqueUsers = $uniqueUsersQuery->count($columnName);
 
         $this->logApiUsageBytes();
 
@@ -381,13 +567,16 @@ class ByteController extends CentralController
             'total_bytes_in' => $totalBytesIn,
             'total_bytes_out' => $totalBytesOut,
             'total_bytes' => $totalBytes,
+            'total_users' => $totalUniqueUsers, // Sudah dihitung hanya sekali
             'role' => $role,
-            'dbTable' => $dbTable // Returning table name
+            'dbTable' => $dbTable
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
+
 
 
     public function logApiUsageBytes()
