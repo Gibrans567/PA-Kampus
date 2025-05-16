@@ -57,24 +57,29 @@ class CentralController extends Controller
         return response()->json($configs);
     }
 
-
     public function store(Request $request)
-    {
-        $request->validate([
-            'host' => 'required|string',
-            'user' => 'required|string',
-            'pass' => 'required|string',
-            'port' => 'required|integer',
-        ]);
+{
+    $request->validate([
+        'host' => 'required|string',
+        'user' => 'required|string',
+        'pass' => 'required|string',
+        'port' => 'required|integer',
+        // 'interval' dihapus karena sudah default
+    ]);
 
-        $config = MikrotikConfig::create($request->all());
+    $config = MikrotikConfig::create($request->only([
+        'host', 'user', 'pass', 'port'
+    ]));
 
-        return response()->json([
-            'message' => 'Konfigurasi berhasil ditambahkan!',
-            'data' => $config
-        ], 201);
-    }
+    $scriptController = new ScriptController();
+    $scriptResult = $scriptController->addScriptAndScheduler($config);
 
+    return response()->json([
+        'message' => 'Konfigurasi berhasil ditambahkan!',
+        'data' => $config,
+        'script_result' => $scriptResult->original
+    ], 201);
+}
 
     public function show($id)
     {
