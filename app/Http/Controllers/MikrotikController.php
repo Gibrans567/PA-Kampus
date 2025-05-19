@@ -86,7 +86,7 @@ class MikrotikController extends CentralController
 
         $bytesLog = DB::table('user_bytes_log')
             ->where('user_name', $no_hp)
-            ->whereDate('created_at', $today)
+            ->whereDate('timestamp', $today)
             ->select('bytes_in', 'bytes_out')
             ->first();
 
@@ -99,10 +99,7 @@ class MikrotikController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
-
-
-
+    }
 
     public function getHotspotUsersByProfileName($profile_name)
 {
