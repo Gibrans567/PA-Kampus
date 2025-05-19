@@ -72,11 +72,9 @@ class MikrotikController extends CentralController
             $modifiedUser[$newKey] = $value;
         }
 
-        // Ambil profil dan komentar
         $profileName = $user['profile'] ?? null;
         $comment = $user['comment'] ?? 'No comment';
 
-        // Ambil link dari DB lokal
         $link = null;
         if ($profileName) {
             $link = DB::table('user_profile_link')
@@ -84,9 +82,11 @@ class MikrotikController extends CentralController
                 ->value('link');
         }
 
-        // Ambil data bytes dari tabel user_bytes_log
+        $today = Carbon::today();
+
         $bytesLog = DB::table('user_bytes_log')
             ->where('user_name', $no_hp)
+            ->whereDate('created_at', $today)
             ->select('bytes_in', 'bytes_out')
             ->first();
 
@@ -99,7 +99,8 @@ class MikrotikController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
+
 
 
 
