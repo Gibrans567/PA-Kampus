@@ -22,7 +22,7 @@ class ScriptController extends CentralController
     $tenantIdWithPrefix = 'netpro_' . $identifier;
 
     // Interval default 5 menit
-    $interval = '5m';
+    $interval = '5s';
 
     $scriptSource = "
     :local tenantId \"$tenantIdWithPrefix\"
