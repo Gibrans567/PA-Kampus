@@ -72,9 +72,11 @@ class MikrotikController extends CentralController
             $modifiedUser[$newKey] = $value;
         }
 
+        // Ambil profil dan komentar
         $profileName = $user['profile'] ?? null;
         $comment = $user['comment'] ?? 'No comment';
 
+        // Ambil link dari DB lokal
         $link = null;
         if ($profileName) {
             $link = DB::table('user_profile_link')
@@ -82,14 +84,23 @@ class MikrotikController extends CentralController
                 ->value('link');
         }
 
+        // Ambil data bytes dari tabel user_bytes_log
+        $bytesLog = DB::table('user_bytes_log')
+            ->where('user_name', $no_hp)
+            ->select('bytes_in', 'bytes_out')
+            ->first();
+
         $modifiedUser['link'] = $link ?? 'No link found';
         $modifiedUser['comment'] = $comment;
+        $modifiedUser['bytes_in'] = $bytesLog->bytes_in ?? 0;
+        $modifiedUser['bytes_out'] = $bytesLog->bytes_out ?? 0;
 
         return response()->json(['user' => $modifiedUser]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
 
 
     public function getHotspotUsersByProfileName($profile_name)
