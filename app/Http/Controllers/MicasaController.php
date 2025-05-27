@@ -358,20 +358,48 @@ class MicasaController extends CentralController
 
         $deletedHostsCount = 0;
         $remainingHostsCount = 0;
+        $deletedIdleHostsCount = 0;
+        $deletedNotInDhcpCount = 0;
+
+        // Waktu batas untuk idle timeout (5 hari dalam detik)
+        $fiveDaysInSeconds = 5 * 24 * 60 * 60; // 432000 detik
 
         // Memeriksa setiap host
         foreach ($hosts as $host) {
             if (isset($host['mac-address'])) {
                 $hostMacAddress = $host['mac-address'];
+                $shouldDelete = false;
+                $deleteReason = '';
 
-                // Jika MAC address host tidak ada di daftar DHCP leases, hapus host
+                // Cek 1: Jika MAC address host tidak ada di daftar DHCP leases
                 if (!in_array($hostMacAddress, $leasesMacAddresses)) {
-                    if (isset($host['.id'])) {
-                        $removeHostQuery = new Query('/ip/hotspot/host/remove');
-                        $removeHostQuery->equal('.id', $host['.id']);
-                        $client->query($removeHostQuery)->read();
-                        $deletedHostsCount++;
+                    $shouldDelete = true;
+                    $deleteReason = 'not_in_dhcp_leases';
+                    $deletedNotInDhcpCount++;
+                }
+
+                // Cek 2: Jika idle time lebih dari 5 hari
+                if (isset($host['idle-time']) && !empty($host['idle-time'])) {
+                    $idleTime = $host['idle-time'];
+
+                    // Parse idle time dari format RouterOS
+                    $idleSeconds = $this->parseRouterOSTime($idleTime);
+
+                    if ($idleSeconds > $fiveDaysInSeconds) {
+                        if (!$shouldDelete) { // Jika belum ditandai untuk dihapus karena alasan lain
+                            $deletedIdleHostsCount++;
+                        }
+                        $shouldDelete = true;
+                        $deleteReason = ($deleteReason === 'not_in_dhcp_leases') ? 'both_reasons' : 'idle_timeout_exceeded';
                     }
+                }
+
+                // Hapus host jika memenuhi kriteria
+                if ($shouldDelete && isset($host['.id'])) {
+                    $removeHostQuery = new Query('/ip/hotspot/host/remove');
+                    $removeHostQuery->equal('.id', $host['.id']);
+                    $client->query($removeHostQuery)->read();
+                    $deletedHostsCount++;
                 } else {
                     $remainingHostsCount++;
                 }
@@ -392,6 +420,8 @@ class MicasaController extends CentralController
                 'total_hosts_before' => count($hosts),
                 'total_dhcp_leases' => count($leases),
                 'hosts_deleted' => $deletedHostsCount,
+                'hosts_deleted_not_in_dhcp' => $deletedNotInDhcpCount,
+                'hosts_deleted_by_idle_timeout' => $deletedIdleHostsCount,
                 'hosts_remaining' => $remainingHostsCount
             ]
         ]);
@@ -399,6 +429,28 @@ class MicasaController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
+    }
+
+    private function parseRouterOSTime($timeString)
+    {
+        $seconds = 0;
+
+        // Pattern untuk menangkap weeks, days, hours, minutes, seconds
+        $patterns = [
+            '/(\d+)w/' => 604800, // 1 week = 604800 seconds
+            '/(\d+)d/' => 86400,  // 1 day = 86400 seconds
+            '/(\d+)h/' => 3600,   // 1 hour = 3600 seconds
+            '/(\d+)m/' => 60,     // 1 minute = 60 seconds
+            '/(\d+)s/' => 1       // 1 second = 1 second
+        ];
+
+        foreach ($patterns as $pattern => $multiplier) {
+            if (preg_match($pattern, $timeString, $matches)) {
+                $seconds += intval($matches[1]) * $multiplier;
+            }
+        }
+
+        return $seconds;
     }
 
     public function getActiveUsersMicasa()
