@@ -316,8 +316,8 @@ class MicasaController extends CentralController
         $cookieQuery = new Query('/ip/hotspot/cookie/print');
         $cookies = $client->query($cookieQuery)->read();
 
-        $deletedCount = 0;
-        $remainingCount = 0;
+        $deletedCookiesCount = 0;
+        $remainingCookiesCount = 0;
 
         // Memeriksa setiap cookie
         foreach ($cookies as $cookie) {
@@ -330,10 +330,50 @@ class MicasaController extends CentralController
                         $removeQuery = new Query('/ip/hotspot/cookie/remove');
                         $removeQuery->equal('.id', $cookie['.id']);
                         $client->query($removeQuery)->read();
-                        $deletedCount++;
+                        $deletedCookiesCount++;
                     }
                 } else {
-                    $remainingCount++;
+                    $remainingCookiesCount++;
+                }
+            }
+        }
+
+        // ========== BAGIAN BARU: MEMBERSIHKAN HOSTS ========== //
+
+        // Mengambil data DHCP server leases
+        $leasesQuery = new Query('/ip/dhcp-server/lease/print');
+        $leases = $client->query($leasesQuery)->read();
+
+        // Membuat array dari MAC address yang ada di DHCP leases
+        $leasesMacAddresses = [];
+        foreach ($leases as $lease) {
+            if (isset($lease['mac-address']) && !empty($lease['mac-address'])) {
+                $leasesMacAddresses[] = $lease['mac-address'];
+            }
+        }
+
+        // Mengambil data hosts
+        $hostsQuery = new Query('/ip/hotspot/host/print');
+        $hosts = $client->query($hostsQuery)->read();
+
+        $deletedHostsCount = 0;
+        $remainingHostsCount = 0;
+
+        // Memeriksa setiap host
+        foreach ($hosts as $host) {
+            if (isset($host['mac-address'])) {
+                $hostMacAddress = $host['mac-address'];
+
+                // Jika MAC address host tidak ada di daftar DHCP leases, hapus host
+                if (!in_array($hostMacAddress, $leasesMacAddresses)) {
+                    if (isset($host['.id'])) {
+                        $removeHostQuery = new Query('/ip/hotspot/host/remove');
+                        $removeHostQuery->equal('.id', $host['.id']);
+                        $client->query($removeHostQuery)->read();
+                        $deletedHostsCount++;
+                    }
+                } else {
+                    $remainingHostsCount++;
                 }
             }
         }
@@ -345,8 +385,14 @@ class MicasaController extends CentralController
             'active_users' => $modifiedActiveUsers,
             'cookies_info' => [
                 'total_cookies_before' => count($cookies),
-                'cookies_deleted' => $deletedCount,
-                'cookies_remaining' => $remainingCount
+                'cookies_deleted' => $deletedCookiesCount,
+                'cookies_remaining' => $remainingCookiesCount
+            ],
+            'hosts_info' => [
+                'total_hosts_before' => count($hosts),
+                'total_dhcp_leases' => count($leases),
+                'hosts_deleted' => $deletedHostsCount,
+                'hosts_remaining' => $remainingHostsCount
             ]
         ]);
 
