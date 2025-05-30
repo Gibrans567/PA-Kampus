@@ -394,7 +394,6 @@ class ByteController extends CentralController
         $startDate = $startDate . ' 00:00:00';
         $endDate = $endDate . ' 23:59:59';
 
-
         $logs = DB::table('user_bytes_log')
             ->select(
                 DB::raw('DATE(timestamp) as date'),
@@ -406,7 +405,6 @@ class ByteController extends CentralController
             ->groupBy(DB::raw('DATE(timestamp)'))
             ->orderBy(DB::raw('DATE(timestamp)'), 'asc')
             ->get();
-
 
         $uniqueRoles = DB::table('user_bytes_log')
             ->select('role')
@@ -431,9 +429,9 @@ class ByteController extends CentralController
                 $largestUserPercentage = 0;
             }
 
-                $log->largest_user = [
-                'user_name' => $largestUser->user_name,
-                'role' => $largestUser->role,
+            $log->largest_user = [
+                'user_name' => $largestUser->user_name ?? null,
+                'role' => $largestUser->role ?? null,
                 'percentage' => $largestUserPercentage . "%"
             ];
 
@@ -450,24 +448,57 @@ class ByteController extends CentralController
                 ->orderBy('total_user_bytes', 'desc')
                 ->get();
 
+            // Format per user
+            foreach ($users as $user) {
+                $user->total_bytes_in = $this->formatBytes($user->total_bytes_in);
+                $user->total_bytes_out = $this->formatBytes($user->total_bytes_out);
+                $user->total_user_bytes = $this->formatBytes($user->total_user_bytes);
+            }
+
+            // Format total per hari
+            $log->total_bytes_in = $this->formatBytes($log->total_bytes_in);
+            $log->total_bytes_out = $this->formatBytes($log->total_bytes_out);
+            $log->total_bytes = $this->formatBytes($log->total_bytes);
             $log->all_users = $users;
         }
 
-        $totalBytesIn = $logs->sum('total_bytes_in');
-        $totalBytesOut = $logs->sum('total_bytes_out');
-        $totalBytes = $totalBytesIn + $totalBytesOut;
+        // Total keseluruhan dalam byte (sebelum diformat)
+        $rawTotalBytesIn = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_in');
+
+        $rawTotalBytesOut = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_out');
+
+        $rawTotalBytes = $rawTotalBytesIn + $rawTotalBytesOut;
 
         return response()->json([
             'details' => $logs,
-            'total_bytes_in' => $totalBytesIn,
-            'total_bytes_out' => $totalBytesOut,
-            'total_bytes' => $totalBytes,
+            'total_bytes_in' => $this->formatBytes($rawTotalBytesIn),
+            'total_bytes_out' => $this->formatBytes($rawTotalBytesOut),
+            'total_bytes' => $this->formatBytes($rawTotalBytes),
             'unique_roles' => $uniqueRoles,
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
+
+    private function formatBytes($bytes)
+    {
+        if ($bytes >= 1073741824) {
+            return round($bytes / 1073741824, 2) . ' GB';
+        } elseif ($bytes >= 1048576) {
+            return round($bytes / 1048576, 2) . ' MB';
+        } elseif ($bytes >= 1024) {
+            return round($bytes / 1024, 2) . ' KB';
+        } else {
+            return $bytes . ' B';
+        }
+    }
+
 
     public function getHotspotUsersByUniqueRole(Request $request)
 {
