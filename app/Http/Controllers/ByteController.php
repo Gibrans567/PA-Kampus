@@ -464,17 +464,20 @@ class ByteController extends CentralController
 
 
     private function formatBytes($bytes)
-    {
-        if ($bytes >= 1073741824) {
-            return round($bytes / 1073741824, 2) . ' GB';
-        } elseif ($bytes >= 1048576) {
-            return round($bytes / 1048576, 2) . ' MB';
-        } elseif ($bytes >= 1024) {
-            return round($bytes / 1024, 2) . ' KB';
-        } else {
-            return $bytes . ' B';
-        }
+{
+    if ($bytes >= 1099511627776) { // 1024^4 = 1 TB
+        return round($bytes / 1099511627776, 2) . ' TB';
+    } elseif ($bytes >= 1073741824) { // 1024^3 = 1 GB
+        return round($bytes / 1073741824, 2) . ' GB';
+    } elseif ($bytes >= 1048576) { // 1024^2 = 1 MB
+        return round($bytes / 1048576, 2) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return round($bytes / 1024, 2) . ' KB';
+    } else {
+        return $bytes . ' B';
     }
+    }
+
 
 
     public function getHotspotUsersByUniqueRole(Request $request)
@@ -497,10 +500,15 @@ class ByteController extends CentralController
         // Helper konversi MB/GB
         $convertBytes = function ($bytes) {
             $mb = $bytes / 1048576;
-            return ($mb > 1000)
-                ? round($mb / 1024, 2) . ' GB'
-                : round($mb, 2) . ' MB';
+            if ($mb >= 1024 * 1024) {
+                return round($mb / 1024 / 1024, 2) . ' TB';
+            } elseif ($mb >= 1024) {
+                return round($mb / 1024, 2) . ' GB';
+            } else {
+                return round($mb, 2) . ' MB';
+            }
         };
+
 
         // ✅ 1. DATA PER HARI
         $dailyLogsQuery = DB::table($dbTable)
