@@ -511,7 +511,7 @@ class MicasaController extends CentralController
         $client->query($deleteQuery)->read();
 
         return response()->json([
-            'message' => "Active user with ID \"$id\" has been removed."
+            'message' => "Active user has been removed."
         ]);
 
     } catch (\Exception $e) {
