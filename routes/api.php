@@ -115,6 +115,8 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
 
     Route::post('/mikrotik/edit-admin-micasa/{no_hp}', [MicasaController::class, 'adminEditMicasa']);
     Route::get('/mikrotik/get-active-micasa', [MicasaController::class, 'getActiveUsersMicasa']);
+    Route::delete('/delete-active-user-by-username/{id}', [MicasaController::class, 'deleteActiveUserByIdMicasa']);
+
 
 
 });

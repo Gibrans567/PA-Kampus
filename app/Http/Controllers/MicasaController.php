@@ -499,4 +499,28 @@ class MicasaController extends CentralController
     }
     }
 
+    public function deleteActiveUserByIdMicasa($id)
+{
+    try {
+        // Koneksi ke Mikrotik
+        $client = $this->getClientLogin();
+
+        // Jalankan perintah remove berdasarkan .id
+        $deleteQuery = new Query('/ip/hotspot/active/remove');
+        $deleteQuery->equal('.id', $id);
+        $client->query($deleteQuery)->read();
+
+        return response()->json([
+            'message' => "Active user with ID \"$id\" has been removed."
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
+    }
+    }
+
+
+
 }
