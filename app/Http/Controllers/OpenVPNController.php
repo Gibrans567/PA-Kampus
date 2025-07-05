@@ -54,9 +54,7 @@ class OpenVPNController extends CentralController
         'username' => 'required|string|max:255',
         'password' => 'required|string|max:255',
         'pool_name' => 'required|string',
-        'client_ip_range' => 'required|string',
         'port_Nat' => 'required|string',
-        'address_network' => 'required|string',
         'port_address' => 'required|string'
     ]);
 
@@ -79,12 +77,10 @@ class OpenVPNController extends CentralController
     $username = $request->input('username');
     $password = $request->input('password');
     $natport = $request->input('port_Nat');
-    $clientIpRange = $request->input('client_ip_range');
-    $addressNetwork = $request->input('address_network');
+    $poolName = $request->input('pool_name');
     $portAddress = $request->input('port_address');
     $certificate = 'none';
     $ovpnInterface = "ovpn-{$username}";
-    $poolName = $request->input('pool_name');
     $profileName = "{$username}-profile";
     $clientName = "client-{$username}";
 
@@ -96,7 +92,6 @@ class OpenVPNController extends CentralController
                 ->where('dst-address', $serverIp)
         )->read();
 
-        // Jika ada data yang dikembalikan, berarti port sudah digunakan
         if (!empty($response)) {
             return response()->json([
                 'message' => 'Port NAT ' . $natport . ' sudah dipakai',
@@ -115,19 +110,11 @@ class OpenVPNController extends CentralController
             ], 400);
         }
 
-        // Cek apakah client IP range sudah digunakan dengan cara yang sama seperti pool name
-        $ipPoolResponse = $client->query(
-            (new Query('/ip/pool/print'))
-                ->where('ranges', $clientIpRange)
-        )->read();
+        // **Auto-generate IP Private Kelas B (172.16.x.x)**
+        $clientIpRange = $this->generateAvailableIpKlasB($client);
+        $addressNetwork = $clientIpRange; // address_network sama dengan client_ip_range
 
-        if (!empty($ipPoolResponse)) {
-            return response()->json([
-                'message' => 'Client IP range ' . $clientIpRange . ' sudah dipakai',
-            ], 400);
-        }
-
-        // **Menambahkan 1 ke last octet dari IP pool**
+        // **Menambahkan 1 ke last octet dari IP pool untuk local address**
         $ipParts = explode('.', $clientIpRange);
         if (count($ipParts) == 4) {
             $ipParts[3] = (int) $ipParts[3] + 1;
@@ -181,15 +168,61 @@ class OpenVPNController extends CentralController
         ];
 
         return response()->json([
-            'message' => 'VPN berhasil dikonfigurasi di Mikrotik, tetapi Masquerade dan OpenVPN Client perlu dijalankan manual',
+            'message' => 'VPN berhasil dikonfigurasi di Mikrotik',
+            'client_ip_range' => $clientIpRange,
+            'address_network' => $addressNetwork,
+            'local_address' => $localAddress,
             'commands' => $vpnCommands
         ]);
+
     } catch (Exception $e) {
         return response()->json([
             'message' => 'Terjadi kesalahan saat mengkonfigurasi VPN',
             'error' => $e->getMessage()
         ], 500);
     }
+}
+
+/**
+ * Generate IP Private Kelas B yang tersedia
+ * Range: 172.16.0.0 - 172.31.255.255
+ */
+private function generateAvailableIpKlasB($client)
+{
+    // Mulai dari 172.16.1.1
+    $baseOctet2 = 16; // Octet kedua dimulai dari 16
+    $baseOctet3 = 1;  // Octet ketiga dimulai dari 1
+    $baseOctet4 = 1;  // Octet keempat dimulai dari 1
+
+    $maxOctet2 = 31;  // Maksimal octet kedua untuk kelas B private (172.16.x.x - 172.31.x.x)
+    $maxOctet3 = 255; // Maksimal octet ketiga
+    $maxOctet4 = 254; // Maksimal octet keempat (hindari .255)
+
+    for ($octet2 = $baseOctet2; $octet2 <= $maxOctet2; $octet2++) {
+        for ($octet3 = $baseOctet3; $octet3 <= $maxOctet3; $octet3++) {
+            for ($octet4 = $baseOctet4; $octet4 <= $maxOctet4; $octet4++) {
+                $candidateIp = "172.{$octet2}.{$octet3}.{$octet4}";
+
+                // Cek apakah IP sudah digunakan di pool
+                $ipCheckResponse = $client->query(
+                    (new Query('/ip/pool/print'))
+                        ->where('ranges', $candidateIp)
+                )->read();
+
+                // Jika IP belum digunakan, return IP tersebut
+                if (empty($ipCheckResponse)) {
+                    return $candidateIp;
+                }
+            }
+            // Reset octet4 untuk loop berikutnya
+            $baseOctet4 = 1;
+        }
+        // Reset octet3 untuk loop berikutnya
+        $baseOctet3 = 1;
+    }
+
+    // Jika semua IP sudah terpakai (sangat tidak mungkin dengan range sebesar ini)
+    throw new Exception('Semua IP dalam range kelas B sudah terpakai');
 }
 
     public function addNatMasqueradeFromCommand(Request $request)
@@ -273,7 +306,7 @@ class OpenVPNController extends CentralController
 
             return response()->json([
                 'success' => true,
-                'message' => 'NAT masquerade berhasil ditambahkan', 
+                'message' => 'NAT masquerade berhasil ditambahkan',
                 'data' => $response
             ]);
         } catch (Exception $e) {
@@ -286,8 +319,6 @@ class OpenVPNController extends CentralController
             ], 500);
         }
     }
-
-
 
     public function getInterfaceLists()
     {

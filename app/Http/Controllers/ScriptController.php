@@ -14,26 +14,16 @@ use RouterOS\Query;
 
 class ScriptController extends CentralController
 {
-    public function addScriptAndScheduler(Request $request)
+    public function addScriptAndScheduler($config)
 {
-    $request->validate([
-        'script_name' => 'required|string',
-        'scheduler_name' => 'required|string',
-        'tenant_id' => 'required|string',
-        // Make interval optional, and if not provided, default to 5m
-    ]);
+    $identifier = $config->user;
+    $scriptName = 'script_' . $identifier;
+    $schedulerName = 'scheduler_' . $identifier;
+    $tenantIdWithPrefix = 'netpro_' . $identifier;
 
-    $scriptName = $request->input('script_name');
-    $schedulerName = $request->input('scheduler_name');
-    $tenantId = $request->input('tenant_id');
+    // Interval default 5 menit
+    $interval = '5s';
 
-    // Prepend 'netpto_' to tenantId
-    $tenantIdWithPrefix = 'netpro_' . $tenantId;
-
-    // Set default interval to 5m if not provided by the user
-    $interval = $request->input('interval', '5m'); // '5m' is the default value
-
-    // Script dengan dynamic tenant ID
     $scriptSource = "
     :local tenantId \"$tenantIdWithPrefix\"
     :local url1 (\"https://netpro.blog/api/delete-voucher-all-tenant?tenant_id=\" . \$tenantId)
@@ -42,10 +32,8 @@ class ScriptController extends CentralController
     ";
 
     try {
-        $config = $this->getClientLogin();
-        $client = $config;
+        $client = $this->getClientLogin();
 
-        // Log the script content for debugging
         Log::info("Adding script: " . $scriptName . " with source: " . $scriptSource);
 
         $addScriptQuery = new Query('/system/script/add');
@@ -54,7 +42,6 @@ class ScriptController extends CentralController
             ->equal('source', $scriptSource);
         $client->query($addScriptQuery)->read();
 
-        // Log the scheduler parameters for debugging
         Log::info("Adding scheduler: " . $schedulerName . " with interval: " . $interval);
 
         $addSchedulerQuery = new Query('/system/scheduler/add');
@@ -65,12 +52,11 @@ class ScriptController extends CentralController
         $client->query($addSchedulerQuery)->read();
 
         return response()->json(['message' => 'Script dan scheduler berhasil ditambahkan'], 200);
+
     } catch (ConfigException | ClientException | QueryException $e) {
         return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
     }
-
-
 
     public function getSystemInfo()
 {

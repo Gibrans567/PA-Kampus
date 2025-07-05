@@ -391,22 +391,52 @@ class ByteController extends CentralController
             return response()->json(['error' => 'Tanggal awal dan akhir harus disediakan'], 400);
         }
 
-        $startDate = $startDate . ' 00:00:00';
-        $endDate = $endDate . ' 23:59:59';
+        $startDate .= ' 00:00:00';
+        $endDate .= ' 23:59:59';
 
+        // Hitung total keseluruhan bytes
+        $totalBytesIn = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_in');
 
-        $logs = DB::table('user_bytes_log')
+        $totalBytesOut = DB::table('user_bytes_log')
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->sum('bytes_out');
+
+        $totalBytes = $totalBytesIn + $totalBytesOut;
+
+        // Ambil semua user, urutkan dari penggunaan terbesar
+        $users = DB::table('user_bytes_log')
             ->select(
-                DB::raw('DATE(timestamp) as date'),
-                DB::raw('SUM(bytes_in) as total_bytes_in'),
-                DB::raw('SUM(bytes_out) as total_bytes_out'),
-                DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_bytes')
+                'user_name',
+                'role',
+                DB::raw('SUM(bytes_in) as raw_bytes_in'),
+                DB::raw('SUM(bytes_out) as raw_bytes_out'),
+                DB::raw('SUM(bytes_in + bytes_out) as raw_total_user_bytes')
             )
             ->whereBetween('timestamp', [$startDate, $endDate])
-            ->groupBy(DB::raw('DATE(timestamp)'))
-            ->orderBy(DB::raw('DATE(timestamp)'), 'asc')
+            ->groupBy('user_name', 'role')
+            ->orderByDesc('raw_total_user_bytes')
             ->get();
 
+        // Ambil data mentah pengguna terbesar (yang pertama diurutkan)
+        $largestUserBytes = $users->first()->raw_total_user_bytes ?? 0;
+
+        $largestUserPercentage = ($totalBytes > 0 && $largestUserBytes > 0)
+            ? round(($largestUserBytes / $totalBytes) * 100)
+            : 0;
+
+        // Format data pengguna
+        foreach ($users as $user) {
+            $user->total_bytes_in = $this->formatBytes($user->raw_bytes_in);
+            $user->total_bytes_out = $this->formatBytes($user->raw_bytes_out);
+            $user->total_user_bytes = $this->formatBytes($user->raw_total_user_bytes);
+
+            // Hapus raw data dari respons
+            unset($user->raw_bytes_in, $user->raw_bytes_out, $user->raw_total_user_bytes);
+        }
+
+        $largestUser = $users->first();
 
         $uniqueRoles = DB::table('user_bytes_log')
             ->select('role')
@@ -414,60 +444,41 @@ class ByteController extends CentralController
             ->distinct()
             ->pluck('role');
 
-        foreach ($logs as $log) {
-            $largestUser = DB::table('user_bytes_log')
-                ->select(
-                    'user_name',
-                    'role',
-                    DB::raw('(bytes_in + bytes_out) as total_user_bytes')
-                )
-                ->whereDate('timestamp', $log->date)
-                ->orderBy('total_user_bytes', 'desc')
-                ->first();
-
-            if ($largestUser && $log->total_bytes > 0) {
-                $largestUserPercentage = round(($largestUser->total_user_bytes / $log->total_bytes) * 100);
-            } else {
-                $largestUserPercentage = 0;
-            }
-
-                $log->largest_user = [
-                'user_name' => $largestUser->user_name,
-                'role' => $largestUser->role,
-                'percentage' => $largestUserPercentage . "%"
-            ];
-
-            $users = DB::table('user_bytes_log')
-                ->select(
-                    'user_name',
-                    'role',
-                    DB::raw('SUM(bytes_in) as total_bytes_in'),
-                    DB::raw('SUM(bytes_out) as total_bytes_out'),
-                    DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
-                )
-                ->whereDate('timestamp', $log->date)
-                ->groupBy('user_name', 'role')
-                ->orderBy('total_user_bytes', 'desc')
-                ->get();
-
-            $log->all_users = $users;
-        }
-
-        $totalBytesIn = $logs->sum('total_bytes_in');
-        $totalBytesOut = $logs->sum('total_bytes_out');
-        $totalBytes = $totalBytesIn + $totalBytesOut;
-
         return response()->json([
-            'details' => $logs,
-            'total_bytes_in' => $totalBytesIn,
-            'total_bytes_out' => $totalBytesOut,
-            'total_bytes' => $totalBytes,
+            'total_bytes_in' => $this->formatBytes($totalBytesIn),
+            'total_bytes_out' => $this->formatBytes($totalBytesOut),
+            'total_bytes' => $this->formatBytes($totalBytes),
+            'largest_user' => [
+                'user_name' => $largestUser->user_name ?? null,
+                'role' => $largestUser->role ?? null,
+                'percentage' => $largestUserPercentage . "%"
+            ],
+            'users' => $users,
             'unique_roles' => $uniqueRoles,
         ]);
+
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
+
+
+    private function formatBytes($bytes)
+{
+    if ($bytes >= 1099511627776) { // 1024^4 = 1 TB
+        return round($bytes / 1099511627776, 2) . ' TB';
+    } elseif ($bytes >= 1073741824) { // 1024^3 = 1 GB
+        return round($bytes / 1073741824, 2) . ' GB';
+    } elseif ($bytes >= 1048576) { // 1024^2 = 1 MB
+        return round($bytes / 1048576, 2) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return round($bytes / 1024, 2) . ' KB';
+    } else {
+        return $bytes . ' B';
+    }
+    }
+
+
 
     public function getHotspotUsersByUniqueRole(Request $request)
 {
@@ -486,69 +497,79 @@ class ByteController extends CentralController
         $dbTable = 'user_bytes_log';
         $columnName = 'user_name';
 
-        // Query total data per tanggal
-        $query = DB::table($dbTable)
+        // Helper konversi MB/GB
+        $convertBytes = function ($bytes) {
+            $mb = $bytes / 1048576;
+            if ($mb >= 1024 * 1024) {
+                return round($mb / 1024 / 1024, 2) . ' TB';
+            } elseif ($mb >= 1024) {
+                return round($mb / 1024, 2) . ' GB';
+            } else {
+                return round($mb, 2) . ' MB';
+            }
+        };
+
+
+        // ✅ 1. DATA PER HARI
+        $dailyLogsQuery = DB::table($dbTable)
             ->select(
                 DB::raw('DATE(timestamp) as date'),
                 DB::raw('SUM(bytes_in) as total_bytes_in'),
-                DB::raw('SUM(bytes_out) as total_bytes_out'),
-                DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_bytes')
+                DB::raw('SUM(bytes_out) as total_bytes_out')
             )
-            ->whereBetween('timestamp', [$startDate, $endDate]);
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->groupBy(DB::raw('DATE(timestamp)'))
+            ->orderBy(DB::raw('DATE(timestamp)'), 'asc');
 
         if ($role !== "All") {
-            $query->where('role', $role);
+            $dailyLogsQuery->where('role', $role);
         }
 
-        $logs = $query->groupBy(DB::raw('DATE(timestamp)'))
-            ->orderBy(DB::raw('DATE(timestamp)'), 'asc')
-            ->get();
+        $dailyLogs = $dailyLogsQuery->get();
 
-        $totalBytesIn = $logs->sum('total_bytes_in');
-        $totalBytesOut = $logs->sum('total_bytes_out');
+        // Tambahkan satuan human readable
+        foreach ($dailyLogs as $log) {
+            $log->total_bytes_in_human = $convertBytes($log->total_bytes_in);
+            $log->total_bytes_out_human = $convertBytes($log->total_bytes_out);
+            $log->total_bytes = $log->total_bytes_in + $log->total_bytes_out;
+            $log->total_bytes_human = $convertBytes($log->total_bytes);
+        }
+
+        // ✅ 2. TOTAL PER USER UNTUK SELURUH RANGE
+        $usersQuery = DB::table($dbTable)
+            ->select(
+                $columnName,
+                DB::raw('SUM(bytes_in) as total_bytes_in'),
+                DB::raw('SUM(bytes_out) as total_bytes_out'),
+                DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
+            )
+            ->whereBetween('timestamp', [$startDate, $endDate])
+            ->groupBy($columnName)
+            ->orderByDesc('total_user_bytes');
+
+        if ($role !== "All") {
+            $usersQuery->where('role', $role);
+        }
+
+        $users = $usersQuery->get();
+
+        $totalBytesIn = $users->sum('total_bytes_in');
+        $totalBytesOut = $users->sum('total_bytes_out');
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
-        foreach ($logs as $log) {
-            // Cari user terbesar per hari
-            $largestUserQuery = DB::table($dbTable)
-                ->select($columnName, DB::raw('(bytes_in + bytes_out) as total_user_bytes'))
-                ->whereDate('timestamp', $log->date);
-
-            if ($role !== "All") {
-                $largestUserQuery->where('role', $role);
-            }
-
-            $largestUser = $largestUserQuery->orderBy('total_user_bytes', 'desc')->first();
-
-            $largestUserPercentage = ($largestUser && $log->total_bytes > 0)
-                ? round(($largestUser->total_user_bytes / $log->total_bytes) * 100)
-                : 0;
-
-            $log->largest_user = [
-                $columnName => $largestUser->$columnName ?? null,
-                'percentage' => $largestUserPercentage . "%"
-            ];
-
-            // Semua user per tanggal (grup berdasarkan user_name)
-            $usersQuery = DB::table($dbTable)
-                ->select(
-                    $columnName,
-                    DB::raw('SUM(bytes_in) as total_bytes_in'),
-                    DB::raw('SUM(bytes_out) as total_bytes_out'),
-                    DB::raw('(SUM(bytes_in) + SUM(bytes_out)) as total_user_bytes')
-                )
-                ->whereDate('timestamp', $log->date)
-                ->groupBy($columnName)
-                ->orderBy('total_user_bytes', 'desc');
-
-            if ($role !== "All") {
-                $usersQuery->where('role', $role);
-            }
-
-            $log->all_users = $usersQuery->get();
+        foreach ($users as $user) {
+            $user->total_bytes_in_human = $convertBytes($user->total_bytes_in);
+            $user->total_bytes_out_human = $convertBytes($user->total_bytes_out);
+            $user->total_user_bytes_human = $convertBytes($user->total_user_bytes);
         }
 
-        // ✅ Hitung total user unik hanya 1x dalam seluruh periode
+        // ✅ 3. USER TERBESAR SELAMA PERIODE
+        $largestUser = $users->first();
+        $largestUserPercentage = ($largestUser && $totalBytes > 0)
+            ? round(($largestUser->total_user_bytes / $totalBytes) * 100)
+            : 0;
+
+        // ✅ 4. TOTAL USER UNIK
         $uniqueUsersQuery = DB::table($dbTable)
             ->select($columnName)
             ->distinct()
@@ -563,11 +584,17 @@ class ByteController extends CentralController
         $this->logApiUsageBytes();
 
         return response()->json([
-            'details' => $logs,
-            'total_bytes_in' => $totalBytesIn,
-            'total_bytes_out' => $totalBytesOut,
-            'total_bytes' => $totalBytes,
-            'total_users' => $totalUniqueUsers, // Sudah dihitung hanya sekali
+            'daily_logs' => $dailyLogs,
+            'users' => $users,
+            'total_bytes_in' => $convertBytes($totalBytesIn),
+            'total_bytes_out' => $convertBytes($totalBytesOut),
+            'total_bytes' => $convertBytes($totalBytes),
+            'total_users' => $totalUniqueUsers,
+            'largest_user' => [
+                $columnName => $largestUser->$columnName ?? null,
+                'total_user_bytes' => $convertBytes($largestUser->total_user_bytes ?? 0),
+                'percentage' => $largestUserPercentage . "%"
+            ],
             'role' => $role,
             'dbTable' => $dbTable
         ]);
@@ -575,8 +602,6 @@ class ByteController extends CentralController
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
-
-
 
 
     public function logApiUsageBytes()

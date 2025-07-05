@@ -316,8 +316,8 @@ class MicasaController extends CentralController
         $cookieQuery = new Query('/ip/hotspot/cookie/print');
         $cookies = $client->query($cookieQuery)->read();
 
-        $deletedCount = 0;
-        $remainingCount = 0;
+        $deletedCookiesCount = 0;
+        $remainingCookiesCount = 0;
 
         // Memeriksa setiap cookie
         foreach ($cookies as $cookie) {
@@ -330,10 +330,78 @@ class MicasaController extends CentralController
                         $removeQuery = new Query('/ip/hotspot/cookie/remove');
                         $removeQuery->equal('.id', $cookie['.id']);
                         $client->query($removeQuery)->read();
-                        $deletedCount++;
+                        $deletedCookiesCount++;
                     }
                 } else {
-                    $remainingCount++;
+                    $remainingCookiesCount++;
+                }
+            }
+        }
+
+        // ========== BAGIAN BARU: MEMBERSIHKAN HOSTS ========== //
+
+        // Mengambil data DHCP server leases
+        $leasesQuery = new Query('/ip/dhcp-server/lease/print');
+        $leases = $client->query($leasesQuery)->read();
+
+        // Membuat array dari MAC address yang ada di DHCP leases
+        $leasesMacAddresses = [];
+        foreach ($leases as $lease) {
+            if (isset($lease['mac-address']) && !empty($lease['mac-address'])) {
+                $leasesMacAddresses[] = $lease['mac-address'];
+            }
+        }
+
+        // Mengambil data hosts
+        $hostsQuery = new Query('/ip/hotspot/host/print');
+        $hosts = $client->query($hostsQuery)->read();
+
+        $deletedHostsCount = 0;
+        $remainingHostsCount = 0;
+        $deletedIdleHostsCount = 0;
+        $deletedNotInDhcpCount = 0;
+
+        // Waktu batas untuk idle timeout (5 hari dalam detik)
+        $fiveDaysInSeconds = 5 * 24 * 60 * 60; // 432000 detik
+
+        // Memeriksa setiap host
+        foreach ($hosts as $host) {
+            if (isset($host['mac-address'])) {
+                $hostMacAddress = $host['mac-address'];
+                $shouldDelete = false;
+                $deleteReason = '';
+
+                // Cek 1: Jika MAC address host tidak ada di daftar DHCP leases
+                if (!in_array($hostMacAddress, $leasesMacAddresses)) {
+                    $shouldDelete = true;
+                    $deleteReason = 'not_in_dhcp_leases';
+                    $deletedNotInDhcpCount++;
+                }
+
+                // Cek 2: Jika idle time lebih dari 5 hari
+                if (isset($host['idle-time']) && !empty($host['idle-time'])) {
+                    $idleTime = $host['idle-time'];
+
+                    // Parse idle time dari format RouterOS
+                    $idleSeconds = $this->parseRouterOSTime($idleTime);
+
+                    if ($idleSeconds > $fiveDaysInSeconds) {
+                        if (!$shouldDelete) { // Jika belum ditandai untuk dihapus karena alasan lain
+                            $deletedIdleHostsCount++;
+                        }
+                        $shouldDelete = true;
+                        $deleteReason = ($deleteReason === 'not_in_dhcp_leases') ? 'both_reasons' : 'idle_timeout_exceeded';
+                    }
+                }
+
+                // Hapus host jika memenuhi kriteria
+                if ($shouldDelete && isset($host['.id'])) {
+                    $removeHostQuery = new Query('/ip/hotspot/host/remove');
+                    $removeHostQuery->equal('.id', $host['.id']);
+                    $client->query($removeHostQuery)->read();
+                    $deletedHostsCount++;
+                } else {
+                    $remainingHostsCount++;
                 }
             }
         }
@@ -345,8 +413,16 @@ class MicasaController extends CentralController
             'active_users' => $modifiedActiveUsers,
             'cookies_info' => [
                 'total_cookies_before' => count($cookies),
-                'cookies_deleted' => $deletedCount,
-                'cookies_remaining' => $remainingCount
+                'cookies_deleted' => $deletedCookiesCount,
+                'cookies_remaining' => $remainingCookiesCount
+            ],
+            'hosts_info' => [
+                'total_hosts_before' => count($hosts),
+                'total_dhcp_leases' => count($leases),
+                'hosts_deleted' => $deletedHostsCount,
+                'hosts_deleted_not_in_dhcp' => $deletedNotInDhcpCount,
+                'hosts_deleted_by_idle_timeout' => $deletedIdleHostsCount,
+                'hosts_remaining' => $remainingHostsCount
             ]
         ]);
 
@@ -355,44 +431,96 @@ class MicasaController extends CentralController
     }
     }
 
-    public function getActiveUsersMicasa()
+    private function parseRouterOSTime($timeString)
     {
-        try {
-            // Mendapatkan koneksi client Mikrotik
-            $client = $this->getClientLogin();
+        $seconds = 0;
 
-            // Mengambil data pengguna aktif saja
-            $activeQuery = new Query('/ip/hotspot/active/print');
-            $activeUsers = $client->query($activeQuery)->read();
+        // Pattern untuk menangkap weeks, days, hours, minutes, seconds
+        $patterns = [
+            '/(\d+)w/' => 604800, // 1 week = 604800 seconds
+            '/(\d+)d/' => 86400,  // 1 day = 86400 seconds
+            '/(\d+)h/' => 3600,   // 1 hour = 3600 seconds
+            '/(\d+)m/' => 60,     // 1 minute = 60 seconds
+            '/(\d+)s/' => 1       // 1 second = 1 second
+        ];
 
-            // Modifikasi struktur data pengguna aktif
-            $modifiedActiveUsers = array_map(function ($activeUser) {
-                $newUser = [];
-                foreach ($activeUser as $key => $value) {
-                    $newKey = str_replace('.id', 'id', $key);
-                    $newUser[$newKey] = $value;
-                }
-
-                // Pastikan properti penting selalu ada
-                $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
-                $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
-                $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
-                $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
-                $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
-                $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
-                $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
-
-                return $newUser;
-            }, $activeUsers);
-
-            // Mengembalikan response dalam format JSON
-            return response()->json([
-                'total_active_users' => count($modifiedActiveUsers),
-                'active_users' => $modifiedActiveUsers
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json(['error' => $e->getMessage()], 500);
+        foreach ($patterns as $pattern => $multiplier) {
+            if (preg_match($pattern, $timeString, $matches)) {
+                $seconds += intval($matches[1]) * $multiplier;
+            }
         }
+
+        return $seconds;
     }
+
+    public function getActiveUsersMicasa()
+{
+    try {
+        // Mendapatkan koneksi client Mikrotik
+        $client = $this->getClientLogin();
+
+        // Mengambil data pengguna aktif saja
+        $activeQuery = new Query('/ip/hotspot/active/print');
+        $activeUsers = $client->query($activeQuery)->read();
+
+        // Modifikasi struktur data pengguna aktif
+        $modifiedActiveUsers = array_map(function ($activeUser) {
+            $newUser = [];
+            foreach ($activeUser as $key => $value) {
+                $newKey = str_replace('.id', 'id', $key);
+                $newUser[$newKey] = $value;
+            }
+
+            // Pastikan properti penting selalu ada
+            $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
+            $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
+            $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
+            $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
+            $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
+            $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
+            $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
+
+            return $newUser;
+        }, $activeUsers);
+
+        // Urutkan berdasarkan field 'user' agar user yang sama berdekatan
+        usort($modifiedActiveUsers, function ($a, $b) {
+            return strcmp($a['user'], $b['user']);
+        });
+
+        // Mengembalikan response dalam format JSON
+        return response()->json([
+            'total_active_users' => count($modifiedActiveUsers),
+            'active_users' => $modifiedActiveUsers
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
+
+    public function deleteActiveUserByIdMicasa($id)
+{
+    try {
+        // Koneksi ke Mikrotik
+        $client = $this->getClientLogin();
+
+        // Jalankan perintah remove berdasarkan .id
+        $deleteQuery = new Query('/ip/hotspot/active/remove');
+        $deleteQuery->equal('.id', $id);
+        $client->query($deleteQuery)->read();
+
+        return response()->json([
+            'message' => "Active user has been removed."
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
+    }
+    }
+
+
+
 }

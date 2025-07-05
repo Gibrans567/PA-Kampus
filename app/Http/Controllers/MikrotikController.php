@@ -66,6 +66,7 @@ class MikrotikController extends CentralController
 
         $user = $users[0];
 
+        // Normalisasi key
         $modifiedUser = [];
         foreach ($user as $key => $value) {
             $newKey = str_replace('.id', 'id', $key);
@@ -75,6 +76,7 @@ class MikrotikController extends CentralController
         $profileName = $user['profile'] ?? null;
         $comment = $user['comment'] ?? 'No comment';
 
+        // Ambil link dari user_profile_link jika ada
         $link = null;
         if ($profileName) {
             $link = DB::table('user_profile_link')
@@ -82,14 +84,37 @@ class MikrotikController extends CentralController
                 ->value('link');
         }
 
+        // Ambil data log hari ini (pakai timestamp)
+        $today = \Carbon\Carbon::today()->format('Y-m-d');
+        $startDateTime = $today . ' 00:00:00';
+        $endDateTime = $today . ' 23:59:59';
+
+        $bytesLog = DB::table('user_bytes_log')
+            ->where('user_name', $no_hp)
+            ->whereBetween('timestamp', [$startDateTime, $endDateTime])
+            ->select(
+                DB::raw('SUM(bytes_in) as total_bytes_in'),
+                DB::raw('SUM(bytes_out) as total_bytes_out')
+            )
+            ->first();
+
+        // Tetap dalam satuan byte
+        $bytesIn = $bytesLog?->total_bytes_in ?? 0;
+        $bytesOut = $bytesLog?->total_bytes_out ?? 0;
+        $totalBytes = $bytesIn + $bytesOut;
+
+        // Tambahkan ke respons
         $modifiedUser['link'] = $link ?? 'No link found';
         $modifiedUser['comment'] = $comment;
+        $modifiedUser['bytes_in'] = $bytesIn;
+        $modifiedUser['bytes_out'] = $bytesOut;
+        $modifiedUser['total_bytes'] = $totalBytes;
 
         return response()->json(['user' => $modifiedUser]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-    }
+}
 
 
     public function getHotspotUsersByProfileName($profile_name)
