@@ -19,17 +19,13 @@ class MikrotikController extends CentralController
         $token = 'qeTAbqcqiZ6hooBgdtZ32ftcdney1SKGvDhLvS31A4g';
         $wablast = new DhivaProdevWa\ProdevMessages($token);
 
-        // Isi pesan yang akan dikirimkan
         $message = "Halo, berikut adalah informasi login Hotspot Anda:\n\n" .
                 "\n\nLink Login: $login_link\n\n" .
                 "Pastikan Anda sudah login dan waktu akses Anda juga telah diperpanjang.";
-        // Format nomor telepon tujuan
         $blast['phone'][0] = $no_hp;
 
-        // Isi pesan ke dalam array blast
         $blast['message'][0] = $message;
 
-        // Kirim pesan melalui broadcast
         $wablast->broadcast->sendInstan($blast);
     }
 
@@ -50,6 +46,32 @@ class MikrotikController extends CentralController
         ];
     }
 
+    /**
+ * @OA\Get(
+ *     path="/api/mikrotik/get-Hotspot-by-phone/{no_hp}",
+ *     summary="Ambil data user hotspot berdasarkan nomor HP",
+ *     tags={"Hotspot"},
+ *     security={{"bearerAuth": {}},{"X-Tenant-ID": {}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Parameter(
+ *         name="no_hp",
+ *         in="path",
+ *         required=true,
+ *         @OA\Schema(type="string"),
+ *         description="Nomor HP pengguna",
+ *         example="08123456789"
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Data user berhasil ditemukan",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="user", type="object")
+ *         )
+ *     ),
+ *     @OA\Response(response=404, description="User tidak ditemukan"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function getHotspotUserByPhoneNumber($no_hp)
 {
     try {
@@ -66,7 +88,6 @@ class MikrotikController extends CentralController
 
         $user = $users[0];
 
-        // Normalisasi key
         $modifiedUser = [];
         foreach ($user as $key => $value) {
             $newKey = str_replace('.id', 'id', $key);
@@ -76,7 +97,6 @@ class MikrotikController extends CentralController
         $profileName = $user['profile'] ?? null;
         $comment = $user['comment'] ?? 'No comment';
 
-        // Ambil link dari user_profile_link jika ada
         $link = null;
         if ($profileName) {
             $link = DB::table('user_profile_link')
@@ -84,8 +104,7 @@ class MikrotikController extends CentralController
                 ->value('link');
         }
 
-        // Ambil data log hari ini (pakai timestamp)
-        $today = \Carbon\Carbon::today()->format('Y-m-d');
+        $today = Carbon::today()->format('Y-m-d');
         $startDateTime = $today . ' 00:00:00';
         $endDateTime = $today . ' 23:59:59';
 
@@ -98,12 +117,10 @@ class MikrotikController extends CentralController
             )
             ->first();
 
-        // Tetap dalam satuan byte
         $bytesIn = $bytesLog?->total_bytes_in ?? 0;
         $bytesOut = $bytesLog?->total_bytes_out ?? 0;
         $totalBytes = $bytesIn + $bytesOut;
 
-        // Tambahkan ke respons
         $modifiedUser['link'] = $link ?? 'No link found';
         $modifiedUser['comment'] = $comment;
         $modifiedUser['bytes_in'] = $bytesIn;
@@ -114,9 +131,39 @@ class MikrotikController extends CentralController
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
     }
-}
+    }
 
-
+    /**
+ * @OA\Get(
+ *     path="/api/mikrotik/get-Hotspot-users/{profile_name}",
+ *     summary="Ambil semua user berdasarkan nama profile",
+ *     tags={"Hotspot"},
+ *     security={{"bearerAuth": {}},{"X-Tenant-ID": {}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Parameter(
+ *         name="profile_name",
+ *         in="path",
+ *         required=true,
+ *         @OA\Schema(type="string"),
+ *         description="Nama profile hotspot",
+ *         example="customer"
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Data user berhasil diambil",
+ *         @OA\JsonContent(
+ *             @OA\Property(
+ *                 property="users",
+ *                 type="array",
+ *                 @OA\Items(type="object")
+ *             ),
+ *             @OA\Property(property="total_bytes_in", type="integer", example=1234567),
+ *             @OA\Property(property="total_bytes_out", type="integer", example=7654321)
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function getHotspotUsersByProfileName($profile_name)
 {
     try {
@@ -169,7 +216,41 @@ class MikrotikController extends CentralController
     }
     }
 
-    public function addHotspotUser1(Request $request)
+    /**
+ * @OA\Post(
+ *     path="/api/mikrotik/add-hotspot-login",
+ *     summary="Tambah user Hotspot sekaligus login dan extend waktu",
+ *     tags={"Hotspot"},
+ *     security={{"bearerAuth": {}},{"X-Tenant-ID": {}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             required={"no_hp","menu_ids"},
+ *             @OA\Property(property="no_hp", type="string", example="08123456789"),
+ *             @OA\Property(property="name", type="string", example="John Doe"),
+ *             @OA\Property(
+ *                 property="menu_ids",
+ *                 type="array",
+ *                 @OA\Items(type="integer", example=1)
+ *             ),
+ *             @OA\Property(property="profile", type="string", example="customer")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="User berhasil dibuat atau diperpanjang",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="User baru ditambahkan dan login berhasil."),
+ *             @OA\Property(property="login_link", type="string", example="http://192.168.51.1/login?username=08123456789&password=08123456789"),
+ *             @OA\Property(property="Waktu Defaultnya", type="string", example="6 Jam")
+ *         )
+ *     ),
+ *     @OA\Response(response=400, description="Nomor HP tidak valid"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function addHotspotUserwithMenu(Request $request)
 {
     $request->validate([
         'no_hp' => 'required|string|max:20',
@@ -313,6 +394,33 @@ class MikrotikController extends CentralController
     }
     }
 
+    /**
+ * @OA\Post(
+ *     path="/api/mikrotik/add-Hotspot-User",
+ *     summary="Tambah user Hotspot sederhana tanpa expiry",
+ *     tags={"Hotspot"},
+ *     security={{"bearerAuth": {}},{"X-Tenant-ID": {}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             required={"no_hp"},
+ *             @OA\Property(property="no_hp", type="string", example="08123456789"),
+ *             @OA\Property(property="profile", type="string", example="customer")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=201,
+ *         description="User berhasil ditambahkan",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="User baru ditambahkan tanpa expiry time."),
+ *             @OA\Property(property="no_hp", type="string", example="08123456789")
+ *         )
+ *     ),
+ *     @OA\Response(response=409, description="User sudah ada"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function addHotspotUser(Request $request)
 {
     $request->validate([
@@ -350,9 +458,37 @@ class MikrotikController extends CentralController
     }
     }
 
+    /**
+ * @OA\Post(
+ *     path="/api/mikrotik/hotspot-user/{no_hp}",
+ *     summary="Edit data user hotspot",
+ *     tags={"Hotspot"},
+ *     security={{"bearerAuth": {}},{"X-Tenant-ID": {}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Parameter(
+ *         name="no_hp",
+ *         in="path",
+ *         required=true,
+ *         description="Nomor HP yang ingin diupdate",
+ *         @OA\Schema(type="string"),
+ *         example="08123456789"
+ *     ),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="name", type="string", example="John Doe"),
+ *             @OA\Property(property="profile", type="string", example="customer"),
+ *             @OA\Property(property="comment", type="string", example="status: active, Expiry: 2025-09-15 18:00:00")
+ *         )
+ *     ),
+ *     @OA\Response(response=200, description="User berhasil diperbarui"),
+ *     @OA\Response(response=404, description="User tidak ditemukan"),
+ *     @OA\Response(response=409, description="Nama sudah digunakan"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function editHotspotUser(Request $request, $no_hp)
 {
-    // Validasi input
     $request->validate([
         'name' => 'sometimes|required|string|max:255',
         'profile' => 'nullable|string|max:50',
@@ -371,7 +507,6 @@ class MikrotikController extends CentralController
 
         $userId = $existingUsers[0]['.id'];
 
-        // Check if the new name is already in use by another user
         if ($request->has('name') && $request->input('name') !== $no_hp) {
             $nameCheckQuery = (new Query('/ip/hotspot/user/print'))->where('name', $request->input('name'));
             $nameExists = $client->query($nameCheckQuery)->read();
@@ -380,7 +515,6 @@ class MikrotikController extends CentralController
                 return response()->json(['message' => 'Nama sudah digunakan'], 409);
             }
 
-            // Also check in the database
             $nameExistsInDB = DB::table('voucher_lists')
                 ->where('name', $request->input('name'))
                 ->where('name', '!=', $no_hp)
@@ -412,8 +546,8 @@ class MikrotikController extends CentralController
         if ($request->has('name')) {
             DB::table('voucher_lists')->where('name', $no_hp)
                 ->update([
-                    'name' => $request->input('name'),    // Update name in the database
-                    'password' => $request->input('name'),  // Update password in the database
+                    'name' => $request->input('name'),
+                    'password' => $request->input('name'),
                 ]);
         }
 
@@ -506,7 +640,6 @@ class MikrotikController extends CentralController
 
     public function deleteExpiredHotspotUsers()
     {
-        // Lock to avoid simultaneous executions
         $lock = Cache::lock('mikrotik_hotspot_user_operation', 10);
 
         if ($lock->get()) {

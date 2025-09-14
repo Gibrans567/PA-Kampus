@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Tenant;
 use Illuminate\Http\Request;
 
-class TennantController extends Controller
+class TennantController
 {
     public function index()
     {
@@ -16,7 +16,6 @@ class TennantController extends Controller
 
     public function show($id)
     {
-        // Cari tenant berdasarkan ID
         $tenant = Tenant::find($id);
         if (!$tenant) {
             return response()->json(['message' => 'Tenant not found'], 404);
@@ -26,17 +25,15 @@ class TennantController extends Controller
 
     public function destroy($id)
     {
-        // Cari tenant berdasarkan ID
         $tenant = Tenant::find($id);
         if (!$tenant) {
             return response()->json(['message' => 'Tenant not found'], 404);
         }
 
-        // Hapus tenant
         $tenant->delete();
 
         return response()->json(['message' => 'Tenant deleted successfully']);
     }
 
-    
+
 }

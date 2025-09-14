@@ -1,0 +1,1636 @@
+{
+    "openapi": "3.0.0",
+    "info": {
+        "title": "API Documentation Netpro",
+        "description": "Dokumentasi API untuk Netpro",
+        "version": "1.0.0"
+    },
+    "servers": [
+        {
+            "url": "http://localhost:8000/api",
+            "description": "Local API server"
+        }
+    ],
+    "paths": {
+        "/login": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Login Pengguna",
+                "description": "Endpoint untuk otentikasi pengguna. Mengembalikan token dan data tenant jika berhasil.",
+                "operationId": "login",
+                "requestBody": {
+                    "description": "Masukkan email dan password",
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "example": "user@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login Berhasil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Login successful"
+                                        },
+                                        "user": {
+                                            "type": "object"
+                                        },
+                                        "tenant": {
+                                            "type": "object"
+                                        },
+                                        "tenant_id": {
+                                            "properties": {
+                                                "name": {
+                                                    "description": "ID Tenant yang terenkripsi",
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "token": {
+                                            "type": "string",
+                                            "example": "1|AbcDefGhiJkl..."
+                                        },
+                                        "status": {
+                                            "description": "Menandakan apakah tenant sudah memiliki konfigurasi mikrotik",
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Password salah"
+                    },
+                    "404": {
+                        "description": "Email tidak ditemukan"
+                    },
+                    "422": {
+                        "description": "Validation Error"
+                    }
+                }
+            }
+        },
+        "/register": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Registrasi Pengguna Baru",
+                "description": "Endpoint untuk registrasi pengguna baru dan membuat tenant.",
+                "operationId": "0903f2e0df1a8857bee538fc055417f0",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "email",
+                                    "password"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "John Doe"
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "example": "john@example.com"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "format": "password",
+                                        "example": "password123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User berhasil diregistrasi",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User registered successfully"
+                                        },
+                                        "user": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "Email atau Tenant sudah digunakan"
+                    },
+                    "422": {
+                        "description": "Validasi gagal"
+                    }
+                }
+            }
+        },
+        "/logout": {
+            "post": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Logout user",
+                "description": "Logout user dengan menghapus semua token yang terkait dan mengakhiri sesi tenant.",
+                "operationId": "68a6108af04af5e3bc1ea68a6c6f1299",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Logout berhasil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Logged out successfully"
+                                        },
+                                        "status": {
+                                            "type": "boolean",
+                                            "example": true
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/users": {
+            "get": {
+                "tags": [
+                    "User"
+                ],
+                "summary": "Ambil semua data user",
+                "description": "Mengambil semua data user dari database pusat.",
+                "operationId": "f846ca630c570f86273e9ada4c12f654",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Data user berhasil diambil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Data users berhasil diambil."
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/user-by-token": {
+            "get": {
+                "tags": [
+                    "Authentication"
+                ],
+                "summary": "Ambil data user berdasarkan token",
+                "description": "Mengambil data user dan tenant menggunakan bearer token.",
+                "operationId": "30fc09ab04796853935f7e4f15885ce6",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Berhasil mendapatkan data user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "user": {
+                                            "type": "object"
+                                        },
+                                        "tenant": {
+                                            "type": "object"
+                                        },
+                                        "encrypted_tenant_id": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Token tidak valid atau tidak ditemukan"
+                    },
+                    "404": {
+                        "description": "User atau tenant tidak ditemukan"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/set-profile": {
+            "post": {
+                "tags": [
+                    "Hotspot Profile"
+                ],
+                "summary": "Create or link a hotspot profile",
+                "description": "Membuat hotspot profile baru atau menambahkan link jika profile sudah ada di Mikrotik.",
+                "operationId": "b93078f815e80aa6d88f35fdd9284f43",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "profile_name",
+                                    "shared_users"
+                                ],
+                                "properties": {
+                                    "profile_name": {
+                                        "type": "string",
+                                        "example": "Premium-User"
+                                    },
+                                    "shared_users": {
+                                        "type": "integer",
+                                        "example": 5
+                                    },
+                                    "rate_limit": {
+                                        "type": "string",
+                                        "example": "2M/2M"
+                                    },
+                                    "link": {
+                                        "type": "string",
+                                        "example": "https://example.com/package"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Hotspot profile created successfully"
+                    },
+                    "200": {
+                        "description": "Profile already exists but link added"
+                    },
+                    "500": {
+                        "description": "Server error"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/get-profile": {
+            "get": {
+                "tags": [
+                    "Hotspot Profile"
+                ],
+                "summary": "Get all hotspot profiles",
+                "description": "Mengambil semua data hotspot profile yang ada di Mikrotik dan link yang tersimpan di database.",
+                "operationId": "9ffbe176f572d73b54371092efe9f5de",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profiles retrieved successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "profiles": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "profile_name": {
+                                                        "type": "string",
+                                                        "example": "Premium-User"
+                                                    },
+                                                    "shared_users": {
+                                                        "type": "integer",
+                                                        "example": 5
+                                                    },
+                                                    "rate_limit": {
+                                                        "type": "string",
+                                                        "example": "2M/2M"
+                                                    },
+                                                    "link": {
+                                                        "type": "string",
+                                                        "example": "https://example.com/package"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No profiles found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/get-profile/{profile_name}": {
+            "get": {
+                "tags": [
+                    "Hotspot Profile"
+                ],
+                "summary": "Get hotspot profile by name",
+                "description": "Mengambil data hotspot profile berdasarkan nama.",
+                "operationId": "5219b6b9d904b59083e7b65c15089013",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "profile_name",
+                        "in": "path",
+                        "description": "Nama profile yang ingin dicari",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Profile data"
+                    },
+                    "404": {
+                        "description": "Profile not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/delete-profile/{profile_name}": {
+            "delete": {
+                "tags": [
+                    "Hotspot Profile"
+                ],
+                "summary": "Delete hotspot profile",
+                "description": "Menghapus hotspot profile berdasarkan nama di Mikrotik.",
+                "operationId": "c6efe4b350c38dbf8f38bc35589f00c9",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "profile_name",
+                        "in": "path",
+                        "description": "Nama profile yang ingin dihapus",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Hotspot profile deleted successfully"
+                    },
+                    "404": {
+                        "description": "Profile not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/hotspot-profile/{profile_name}": {
+            "put": {
+                "tags": [
+                    "Hotspot Profile"
+                ],
+                "summary": "Update hotspot profile",
+                "description": "Mengupdate data hotspot profile dan link di database.",
+                "operationId": "d92578f75cf1e8fd8100026dd85be2f1",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "profile_name",
+                        "in": "path",
+                        "description": "Nama profile yang ingin diperbarui",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "link"
+                                ],
+                                "properties": {
+                                    "link": {
+                                        "type": "string",
+                                        "example": "https://example.com/package"
+                                    },
+                                    "shared_users": {
+                                        "type": "integer",
+                                        "example": 10
+                                    },
+                                    "rate_limit": {
+                                        "type": "string",
+                                        "example": "3M/3M"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Hotspot profile and link updated successfully"
+                    },
+                    "404": {
+                        "description": "Profile not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/api/mikrotik/get-Hotspot-by-phone/{no_hp}": {
+            "get": {
+                "tags": [
+                    "Hotspot"
+                ],
+                "summary": "Ambil data user hotspot berdasarkan nomor HP",
+                "operationId": "36295d883ac535aa865cac853b380298",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "no_hp",
+                        "in": "path",
+                        "description": "Nomor HP pengguna",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "08123456789"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Data user berhasil ditemukan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "user": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User tidak ditemukan"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/api/mikrotik/get-Hotspot-users/{profile_name}": {
+            "get": {
+                "tags": [
+                    "Hotspot"
+                ],
+                "summary": "Ambil semua user berdasarkan nama profile",
+                "operationId": "d13d7c05a9145d28eac18ff4f6152e56",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "profile_name",
+                        "in": "path",
+                        "description": "Nama profile hotspot",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "customer"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Data user berhasil diambil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "users": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object"
+                                            }
+                                        },
+                                        "total_bytes_in": {
+                                            "type": "integer",
+                                            "example": 1234567
+                                        },
+                                        "total_bytes_out": {
+                                            "type": "integer",
+                                            "example": 7654321
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/api/mikrotik/add-hotspot-login": {
+            "post": {
+                "tags": [
+                    "Hotspot"
+                ],
+                "summary": "Tambah user Hotspot sekaligus login dan extend waktu",
+                "operationId": "f7f4dedfd87032f0b3089d72d547a379",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "no_hp",
+                                    "menu_ids"
+                                ],
+                                "properties": {
+                                    "no_hp": {
+                                        "type": "string",
+                                        "example": "08123456789"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "example": "John Doe"
+                                    },
+                                    "menu_ids": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "integer",
+                                            "example": 1
+                                        }
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "customer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "User berhasil dibuat atau diperpanjang",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User baru ditambahkan dan login berhasil."
+                                        },
+                                        "login_link": {
+                                            "type": "string",
+                                            "example": "http://192.168.51.1/login?username=08123456789&password=08123456789"
+                                        },
+                                        "Waktu Defaultnya": {
+                                            "type": "string",
+                                            "example": "6 Jam"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Nomor HP tidak valid"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/api/mikrotik/add-Hotspot-User": {
+            "post": {
+                "tags": [
+                    "Hotspot"
+                ],
+                "summary": "Tambah user Hotspot sederhana tanpa expiry",
+                "operationId": "980d241491019c85badc2bf3f402e112",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "no_hp"
+                                ],
+                                "properties": {
+                                    "no_hp": {
+                                        "type": "string",
+                                        "example": "08123456789"
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "customer"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "User berhasil ditambahkan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User baru ditambahkan tanpa expiry time."
+                                        },
+                                        "no_hp": {
+                                            "type": "string",
+                                            "example": "08123456789"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "User sudah ada"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/api/mikrotik/hotspot-user/{no_hp}": {
+            "post": {
+                "tags": [
+                    "Hotspot"
+                ],
+                "summary": "Edit data user hotspot",
+                "operationId": "170a77b7456ddb9b017e000aaf83edbf",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "no_hp",
+                        "in": "path",
+                        "description": "Nomor HP yang ingin diupdate",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        },
+                        "example": "08123456789"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "John Doe"
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "customer"
+                                    },
+                                    "comment": {
+                                        "type": "string",
+                                        "example": "status: active, Expiry: 2025-09-15 18:00:00"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "User berhasil diperbarui"
+                    },
+                    "404": {
+                        "description": "User tidak ditemukan"
+                    },
+                    "409": {
+                        "description": "Nama sudah digunakan"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    },
+                    {
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/Check-Vpn": {
+            "post": {
+                "tags": [
+                    "OpenVPN"
+                ],
+                "summary": "Cek apakah interface VPN sudah ada di Mikrotik",
+                "description": "Memeriksa apakah interface dengan nama tertentu sudah ada pada Mikrotik",
+                "operationId": "7be81440c5d09fdda74a99832dad7e53",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "interface_name"
+                                ],
+                                "properties": {
+                                    "interface_name": {
+                                        "type": "string",
+                                        "example": "ovpn-client1"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Berhasil mengecek interface",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "exists": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "details": {
+                                            "type": "string",
+                                            "example": "VPN Sudah Ada"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Gagal terhubung ke Mikrotik",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "error": {
+                                            "type": "string",
+                                            "example": "Gagal terhubung ke Mikrotik"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Connection refused"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/configure-vpn-server": {
+            "post": {
+                "tags": [
+                    "OpenVPN"
+                ],
+                "summary": "Konfigurasi VPN di Mikrotik",
+                "description": "Membuat konfigurasi OpenVPN baru di Mikrotik",
+                "operationId": "79adec3460cf866d44d0c077b2d0daa2",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "username",
+                                    "password",
+                                    "pool_name",
+                                    "port_Nat",
+                                    "port_address"
+                                ],
+                                "properties": {
+                                    "username": {
+                                        "type": "string",
+                                        "example": "vpnuser"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "example": "securepass"
+                                    },
+                                    "pool_name": {
+                                        "type": "string",
+                                        "example": "vpn-pool"
+                                    },
+                                    "port_Nat": {
+                                        "type": "string",
+                                        "example": "1194"
+                                    },
+                                    "port_address": {
+                                        "type": "string",
+                                        "example": "8729"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Berhasil mengkonfigurasi VPN",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "VPN berhasil dikonfigurasi di Mikrotik"
+                                        },
+                                        "client_ip_range": {
+                                            "type": "string",
+                                            "example": "172.16.1.1"
+                                        },
+                                        "address_network": {
+                                            "type": "string",
+                                            "example": "172.16.1.1"
+                                        },
+                                        "local_address": {
+                                            "type": "string",
+                                            "example": "172.16.1.2"
+                                        },
+                                        "commands": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string",
+                                                "example": "/interface ovpn-client add name=client-vpnuser connect-to=45.149.93.122 ..."
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Data tidak valid",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Data tidak lengkap atau tidak valid"
+                                        },
+                                        "errors": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan internal"
+                    }
+                }
+            }
+        },
+        "/configure-masquarade": {
+            "post": {
+                "tags": [
+                    "OpenVPN"
+                ],
+                "summary": "Tambah NAT Masquerade di Mikrotik",
+                "description": "Menambahkan aturan NAT masquerade baru ke Mikrotik menggunakan perintah CLI yang dikirim dari API.",
+                "operationId": "2a8fa070d804a15f56d12b81cfd76774",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "command"
+                                ],
+                                "properties": {
+                                    "command": {
+                                        "type": "string",
+                                        "example": "/ip firewall nat add chain=srcnat out-interface=ovpn-client1 action=masquerade comment=Masquerade_user1"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "NAT masquerade berhasil ditambahkan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": true
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "NAT masquerade berhasil ditambahkan"
+                                        },
+                                        "data": {
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Input tidak valid",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean",
+                                            "example": false
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Input does not match any value of interface."
+                                        },
+                                        "data": {
+                                            "type": "null"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan internal"
+                    }
+                }
+            }
+        },
+        "/mikrotik/add-script": {
+            "post": {
+                "tags": [
+                    "Mikrotik"
+                ],
+                "summary": "Tambah script dan scheduler",
+                "operationId": "5df1254eac77cd81779d672135e61745",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "user": {
+                                        "type": "string",
+                                        "example": "tenant_123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Script dan scheduler berhasil ditambahkan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Script dan scheduler berhasil ditambahkan"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/get-info": {
+            "get": {
+                "tags": [
+                    "Mikrotik"
+                ],
+                "summary": "Ambil informasi sistem dari Mikrotik",
+                "operationId": "c62e3b8a853f2fb23c6e226df0c7aa80",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Informasi sistem berhasil diambil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "model": {
+                                            "type": "string",
+                                            "example": "RB750Gr3"
+                                        },
+                                        "rosVersion": {
+                                            "type": "string",
+                                            "example": "7.13"
+                                        },
+                                        "cpuLoad": {
+                                            "type": "integer",
+                                            "example": 30
+                                        },
+                                        "time": {
+                                            "type": "string",
+                                            "example": "10:23:45"
+                                        },
+                                        "date": {
+                                            "type": "string",
+                                            "example": "2025-09-14"
+                                        },
+                                        "freeMemory": {
+                                            "type": "string",
+                                            "example": "120MB"
+                                        },
+                                        "usedMemory": {
+                                            "type": "string",
+                                            "example": "380MB"
+                                        },
+                                        "freeHdd": {
+                                            "type": "string",
+                                            "example": "200MB"
+                                        },
+                                        "totalHdd": {
+                                            "type": "string",
+                                            "example": "512MB"
+                                        },
+                                        "totalMemory": {
+                                            "type": "string",
+                                            "example": "500MB"
+                                        },
+                                        "upTime": {
+                                            "type": "string",
+                                            "example": "5d 4h 33m"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/add-bandwidth-manager": {
+            "post": {
+                "tags": [
+                    "Bandwidth Manager"
+                ],
+                "summary": "Tambah konfigurasi bandwidth manager",
+                "operationId": "4019cd2bccb785688ab33432a6600dda",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "pcq_rate_download": {
+                                        "type": "string",
+                                        "example": "50M"
+                                    },
+                                    "pcq_rate_upload": {
+                                        "type": "string",
+                                        "example": "25M"
+                                    },
+                                    "max_limit_download": {
+                                        "type": "string",
+                                        "example": "50M"
+                                    },
+                                    "max_limit_upload": {
+                                        "type": "string",
+                                        "example": "25M"
+                                    },
+                                    "total_bandwith": {
+                                        "type": "string",
+                                        "example": "75M"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Konfigurasi bandwidth manager berhasil ditambahkan"
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/get-bandwidth-manager": {
+            "get": {
+                "tags": [
+                    "Bandwidth Manager"
+                ],
+                "summary": "Ambil konfigurasi bandwidth manager",
+                "operationId": "cc80932e944f3155226ce3cbf2515510",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Konfigurasi bandwidth manager berhasil diambil"
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/bandwidth-manager/edit-type/{name}": {
+            "post": {
+                "tags": [
+                    "Bandwidth Manager"
+                ],
+                "summary": "Edit konfigurasi queue type",
+                "operationId": "c00ee4b8005c631b447b06568a238b86",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "description": "Nama queue type yang akan diubah",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "pcq_rate": {
+                                        "type": "string",
+                                        "example": "60M"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Queue type berhasil diperbarui"
+                    },
+                    "404": {
+                        "description": "Queue type tidak ditemukan"
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/bandwidth-manager/edit-tree/{name}": {
+            "post": {
+                "tags": [
+                    "Bandwidth Manager"
+                ],
+                "summary": "Edit konfigurasi queue tree",
+                "operationId": "f836eaad39ed423c7b0ec66daf7d6217",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "description": "Nama queue tree yang akan diubah",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "max_limit": {
+                                        "type": "string",
+                                        "example": "70M"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Queue tree berhasil diperbarui"
+                    },
+                    "404": {
+                        "description": "Queue tree tidak ditemukan"
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/bandwidth-manager/delete/{name}": {
+            "delete": {
+                "tags": [
+                    "Bandwidth Manager"
+                ],
+                "summary": "Hapus bandwidth manager berdasarkan nama",
+                "operationId": "6546010e32fabc434dd62f728a9c26e4",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "description": "Nama item yang akan dihapus",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Berhasil dihapus"
+                    },
+                    "404": {
+                        "description": "Item tidak ditemukan"
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": [],
+                        "X-Tenant-ID": []
+                    }
+                ]
+            }
+        },
+        "/fixed-masquarade": {
+            "post": {
+                "tags": [
+                    "Mikrotik"
+                ],
+                "summary": "Perbaiki NAT yang bermasalah",
+                "operationId": "316e1ca1ea270dee00b0cf97ea1fab89",
+                "responses": {
+                    "200": {
+                        "description": "Berhasil memperbaiki rule NAT"
+                    },
+                    "500": {
+                        "description": "Terjadi kesalahan pada server"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "parameters": {
+            "X-Tenant-ID": {
+                "name": "X-Tenant-ID",
+                "in": "header",
+                "description": "Encrypted Tenant ID dari hasil login",
+                "required": true,
+                "schema": {
+                    "type": "string",
+                    "example": "eyJpdiI6IjE2MjM..."
+                }
+            }
+        },
+        "securitySchemes": {
+            "bearerAuth": {
+                "type": "http",
+                "description": "Gunakan Bearer Token untuk autentikasi.",
+                "bearerFormat": "JWT",
+                "scheme": "bearer"
+            }
+        }
+    },
+    "tags": [
+        {
+            "name": "Authentication",
+            "description": "Authentication"
+        },
+        {
+            "name": "User",
+            "description": "User"
+        },
+        {
+            "name": "Hotspot Profile",
+            "description": "Hotspot Profile"
+        },
+        {
+            "name": "Hotspot",
+            "description": "Hotspot"
+        },
+        {
+            "name": "OpenVPN",
+            "description": "OpenVPN"
+        },
+        {
+            "name": "Mikrotik",
+            "description": "Mikrotik"
+        },
+        {
+            "name": "Bandwidth Manager",
+            "description": "Bandwidth Manager"
+        }
+    ]
+}

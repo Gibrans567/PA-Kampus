@@ -278,7 +278,6 @@ class ByteController extends CentralController
     }
     }
 
-
     public function getHotspotProfile(Request $request)
 {
     try {
@@ -379,8 +378,6 @@ class ByteController extends CentralController
     }
     }
 
-
-
     public function getHotspotUsersByDateRange1(Request $request)
 {
     try {
@@ -462,7 +459,6 @@ class ByteController extends CentralController
     }
     }
 
-
     private function formatBytes($bytes)
 {
     if ($bytes >= 1099511627776) { // 1024^4 = 1 TB
@@ -477,8 +473,6 @@ class ByteController extends CentralController
         return $bytes . ' B';
     }
     }
-
-
 
     public function getHotspotUsersByUniqueRole(Request $request)
 {
@@ -603,7 +597,6 @@ class ByteController extends CentralController
     }
     }
 
-
     public function logApiUsageBytes()
 {
     try {
@@ -709,9 +702,5 @@ class ByteController extends CentralController
         return response()->json(['error' => $e->getMessage()], 500);
     }
     }
-
-
-
-
 
 }

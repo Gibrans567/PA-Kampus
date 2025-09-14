@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "darkaonline/l5-swagger": "^9.0",
         "endroid/qr-code": "^5.0",
         "evilfreelancer/routeros-api-php": "*",
         "guzzlehttp/guzzle": "^7.9",
@@ -33,14 +34,11 @@
         "phpunit/phpunit": "^11.0.1"
     },
     "autoload": {
-        "classmap": [
-            "app/Library/ArelAyudhi/src"
-        ],
-        "psr-4": {
-            "App\\": "app/",
-            "ArelAyudhi\\DhivaProdevWa\\": "src/",
-            "Database\\Factories\\": "database/factories/",
-            "Database\\Seeders\\": "database/seeders/"
+    "psr-4": {
+        "App\\": "app/",
+        "ArelAyudhi\\DhivaProdevWa\\": "app/Library/ArelAyudhi/src/",
+        "Database\\Factories\\": "database/factories/",
+        "Database\\Seeders\\": "database/seeders/"
         }
     },
     "autoload-dev": {

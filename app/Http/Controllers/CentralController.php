@@ -6,7 +6,7 @@ use App\Models\MikrotikConfig;
 use Illuminate\Http\Request;
 use RouterOS\Client;
 
-class CentralController extends Controller
+class CentralController
 {
     protected function getClient()
     {

@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\ArtisanController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ByteController;
 use App\Http\Controllers\CentralController;
@@ -25,11 +24,6 @@ Route::get('/user', function (Request $request) {
 Route::post('/mikrotik/update-data', [VoucherController::class, 'UpdateData']);
 Route::post('/mikrotik/update-status', [VoucherController::class, 'updateAllHotspotUsersByPhoneNumber']);
 
-
-Route::post('/mikrotik/run-migrations', [ArtisanController::class, 'runMigrations']);
-Route::post('/mikrotik/run-tenant-migrate', [ArtisanController::class, 'runTenantMigrations']);
-Route::post('/mikrotik/run-rollback', [ArtisanController::class, 'runrollback']);
-
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/regis', [AuthController::class, 'register']);
 Route::get('/Email', [AuthController::class, 'GetEmail']);
@@ -44,7 +38,7 @@ Route::put('/mikrotik/edit/{id}', [MenuController::class, 'editMenu']);
 Route::get('/mikrotik/get-all-menu', [MenuController::class, 'getAllMenus']);
 Route::get('/mikrotik/get-all-order', [MenuController::class, 'getAllOrders']);
 
-Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUser1']);
+
 
 Route::post('/mikrotik/terminal-mikrotik', [TerminalController::class, 'executeMikrotikCommand']);
 Route::post('/mikrotik/terminal-cmd', [TerminalController::class, 'executeCmdCommand']);
@@ -61,15 +55,13 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::post('/mikrotik-config/{id}', [CentralController::class, 'update']);
     Route::delete('/mikrotik-config/{id}', [CentralController::class, 'destroy']);
 
+    Route::post('/mikrotik/add-hotspot-login', [MikrotikController::class, 'addHotspotUserwithMenu']);
     Route::get('/mikrotik/get-Hotspot-by-phone/{no_hp}', [MikrotikController::class, 'getHotspotUserByPhoneNumber']);
     Route::get('/mikrotik/get-Hotspot-users/{profile_name}', [MikrotikController::class, 'getHotspotUsersByProfileName']);
     Route::post('/mikrotik/add-Hotspot-User', [MikrotikController::class, 'addHotspotUser']);
     Route::post('/mikrotik/hotspot-user/{no_hp}', [MikrotikController::class, 'editHotspotUser']);
 
-    Route::post('/mikrotik/add-script', [ScriptController::class, 'addScriptAndScheduler']);
-
     Route::post('/logout', [AuthController::class, 'logout']);
-
 
     Route::get('/mikrotik/get-profile/{profile_name}', [HotspotProfileController::class, 'getHotspotProfileByName']);
     Route::post('/mikrotik/hotspot-profile/{profile_name}', [HotspotProfileController::class, 'updateHotspotProfile']);
@@ -98,8 +90,6 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::post('/mikrotik/switch', [CentralController::class, 'switchConfig']);
     Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
 
-    Route::get('/mikrotik/get-info', [ScriptController::class, 'getSystemInfo']);
-
     Route::get('/mikrotik/get-netwatch', [FailOverController::class, 'getNetwatch']);
     Route::get('/mikrotik/get-route', [FailOverController::class, 'getRoute']);
     Route::post('/mikrotik/add-netwatch', [FailOverController::class, 'addNetwatch']);
@@ -107,6 +97,8 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
 
     Route::post('/mikrotik/Check-Vpn', [OpenVPNController::class, 'checkInterface']);
 
+    Route::post('/mikrotik/add-script', [ScriptController::class, 'addScriptAndScheduler']);
+    Route::get('/mikrotik/get-info', [ScriptController::class, 'getSystemInfo']);
     Route::post('/add-bandwidth-manager', [ScriptController::class, 'addBandwidthManager']);
     Route::get('/get-bandwidth-manager', [ScriptController::class, 'getBandwidthManager']);
     Route::post('/bandwidth-manager/edit-type/{name}', [ScriptController::class, 'editQueueType']);
@@ -132,17 +124,9 @@ Route::post('/mikrotik/login-micasa', [MicasaController::class, 'loginMicasa']);
 Route::delete('/mikrotik/delete-mac-cookie', [MicasaController::class, 'getActiveUsersAndCleanCookiesMicasa']);
 
 Route::post('/configure-vpn-server', [OpenVPNController::class, 'configureVpnServer']);
-
-Route::post('/configure-nat', [OpenVPNController::class, 'configureNat']);
-
 Route::post('/configure-masquarade', [OpenVPNController::class, 'addNatMasqueradeFromCommand']);
+
 Route::post('/fixed-masquarade', [ScriptController::class, 'fixNatInterfaceWithExtraction']);
-
-Route::post('/mikrotik/OpenVPN', [OpenVPNController::class, 'createOpenVpnClient1']);
-Route::post('/mikrotik/OpenVPNServer', [OpenVPNController::class, 'configureVpnServer']);
-Route::post('/mikrotik/OpenVPNClient', [OpenVPNController::class, 'configureOpenVpnClient']);
-
-Route::post('/mikrotik/Check-Vpn1', [OpenVPNController::class, 'checkVpnStatus']);
 
 Route::post('/Check-voucher', [VoucherController::class, 'LoginVoucher']);
 Route::post('/delete-voucher-all-tenant', [VoucherController::class, 'DeleteAlltenant']);

@@ -7,7 +7,7 @@ use App\Models\Order;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
-class MenuController extends Controller
+class MenuController 
 {
     public function createOrder(Request $request)
 {

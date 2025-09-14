@@ -62,10 +62,8 @@ class VoucherController extends CentralController
     public function updateAllHotspotUsersByPhoneNumber($mikrotikConfig)
 {
     try {
-        // Menggunakan data mikrotik_config yang diteruskan
         $client = $this->getClientVoucher($mikrotikConfig);
 
-        // Query untuk mendapatkan pengguna aktif
         $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
         $activeUsers = $client->query($getActiveUsersQuery)->read();
 
@@ -73,60 +71,49 @@ class VoucherController extends CentralController
             return response()->json(['message' => 'Tidak ada pengguna aktif.'], 200);
         }
 
-        // Extract username dari pengguna aktif
         $activeUsernames = array_column($activeUsers, 'user');
 
-        // Proses setiap username yang aktif
         foreach ($activeUsernames as $username) {
-            // Query untuk mendapatkan detail user
             $getUserQuery = (new Query('/ip/hotspot/user/print'))->where('name', $username);
             $users = $client->query($getUserQuery)->read();
 
             if (empty($users)) {
-                continue; // Skip jika user tidak ditemukan
+                continue;
             }
 
             foreach ($users as $user) {
                 $userId = $user['.id'];
-                $comment = $user['comment'] ?? ''; // Menggunakan null coalescing untuk menghindari error jika 'comment' tidak ada
+                $comment = $user['comment'] ?? '';
 
-                // Cek jika status sudah aktif, jika ya, lewati
                 if (strpos($comment, 'status: active') !== false) {
                     continue;
                 }
 
-                // Cari voucher berdasarkan username
                 $voucher = DB::table('voucher_lists')->where('name', $username)->first();
 
-                // Cek jika voucher tidak ditemukan
                 if (!$voucher) {
                     Log::warning("Voucher tidak ditemukan untuk username: {$username}");
                     continue;
                 }
 
-                // Pastikan waktu kadaluarsa valid
                 $voucher_hours = (int)($voucher->waktu ?? 0);
                 $newExpiryTime = Carbon::now()->addHours($voucher_hours);
 
-                // Ambil nama pengguna dari comment jika ada
                 if (preg_match('/name: ([^,]+)/', $comment, $matches)) {
                     $name = $matches[1];
                 } else {
                     $name = $username;
                 }
 
-                // Update comment dengan status aktif dan waktu kadaluarsa baru
                 $updatedComment = "status: active, name: {$name}, expiry: {$newExpiryTime->format('Y-m-d H:i:s')}";
                 $updateUserQuery = (new Query('/ip/hotspot/user/set'))
                     ->equal('.id', $userId)
                     ->equal('comment', $updatedComment);
 
-                // Query untuk update data di MikroTik
                 $client->query($updateUserQuery)->read();
 
-                // Update status di voucher_lists
                 $updateStatus = DB::table('voucher_lists')
-                    ->where('name', $username) // Pastikan menggunakan $username yang sedang diproses
+                    ->where('name', $username)
                     ->update(['status' => 'Online']);
 
                 Log::info("Voucher updated for username: {$username}. Rows affected: {$updateStatus}");
@@ -138,7 +125,6 @@ class VoucherController extends CentralController
         ]);
 
     } catch (\Exception $e) {
-        // Tangani kesalahan dan tampilkan pesan kesalahan
         Log::error("Error in updateAllHotspotUsersByPhoneNumber: {$e->getMessage()}", [
             'exception' => $e,
         ]);
@@ -167,15 +153,12 @@ class VoucherController extends CentralController
             if ($username && $profile !== 'default-trial') {
                 $voucherNamesInHotspot[] = $username;
 
-                // Check if the voucher already exists in the database
                 $dbVoucher = DB::table('voucher_lists')->where('name', $username)->first();
 
-                // If the user exists in both MikroTik and the database, skip any changes
                 if ($dbVoucher && $dbVoucher->name === $username) {
-                    continue;  // Skip this iteration, no update needed
+                    continue;
                 }
 
-                // Update the status to 'Inactive' if user is found in MikroTik but not in the database
                 if ($dbVoucher) {
                     DB::table('voucher_lists')
                         ->where('name', $username)
@@ -190,7 +173,6 @@ class VoucherController extends CentralController
             }
         }
 
-        // Mark vouchers as 'Already Used' if they exist in the database but not in MikroTik data
         foreach ($databaseVouchers as $voucher) {
             if (!in_array($voucher->name, $voucherNamesInHotspot)) {
                 DB::table('voucher_lists')
@@ -305,16 +287,14 @@ class VoucherController extends CentralController
     public function LoginVoucher(Request $request)
 {
     $request->validate([
-        'voucher_code' => 'required|string',  // Validasi untuk voucher code
+        'voucher_code' => 'required|string',
     ]);
 
-    // Ambil semua tenant yang ada dari tabel tenants
     $tenants = Tenant::all();
 
     $voucher = null;
-    $mikrotikConfig = null; // Variabel untuk menyimpan data mikrotik_config
+    $mikrotikConfig = null;
 
-    // Iterasi melalui semua tenant
     foreach ($tenants as $tenant) {
         tenancy()->initialize($tenant);
 
@@ -328,7 +308,7 @@ class VoucherController extends CentralController
     }
 
     if (!$voucher) {
-        return response()->json(['message' => 'Invalid voucher in all tenants'], 400);  // Voucher tidak valid
+        return response()->json(['message' => 'Invalid voucher in all tenants'], 400);
     }
 
     $this->updateAllHotspotUsersByPhoneNumber($mikrotikConfig);
@@ -535,17 +515,14 @@ class VoucherController extends CentralController
                 $newUser[$newKey] = $value;
             }
 
-            // Initialize bytes-in and bytes-out
             $newUser['bytes-in'] = 0;
             $newUser['bytes-out'] = 0;
 
-            // Check if the user is active
             if (isset($activeUsersMap[$user['name']])) {
                 $activeUser = $activeUsersMap[$user['name']];
                 $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
                 $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
             } else {
-                // Check if there's an existing log for the user
                 $existingUser = DB::table('user_bytes_log')
                     ->where('user_name', $user['name'])
                     ->orderBy('timestamp', 'desc')
@@ -557,31 +534,25 @@ class VoucherController extends CentralController
                 }
             }
 
-            // Get the previous log to compare with the current one
             $lastLog = DB::table('user_bytes_log')
                 ->where('user_name', $newUser['name'])
                 ->orderBy('timestamp', 'desc')
                 ->first();
 
-            // Calculate the difference in bytes (only if the new value is larger)
             $bytesInDifference = 0;
             $bytesOutDifference = 0;
 
             if ($lastLog) {
-                // Only calculate the difference if the new value is greater than the previous one
-                $bytesInDifference = max(0, $newUser['bytes-in'] - $lastLog->bytes_in); // Only positive change
-                $bytesOutDifference = max(0, $newUser['bytes-out'] - $lastLog->bytes_out); // Only positive change
+                $bytesInDifference = max(0, $newUser['bytes-in'] - $lastLog->bytes_in);
+                $bytesOutDifference = max(0, $newUser['bytes-out'] - $lastLog->bytes_out);
             } else {
-                // If no previous log, insert the first log without calculating a difference
                 $bytesInDifference = $newUser['bytes-in'];
                 $bytesOutDifference = $newUser['bytes-out'];
             }
 
-            // Update total bytes
             $totalBytesIn += $bytesInDifference;
             $totalBytesOut += $bytesOutDifference;
 
-            // Only insert if there's a positive change in bytes
             if ($bytesInDifference > 0 || $bytesOutDifference > 0) {
                 DB::table('user_bytes_log')->insert([
                     'user_name' => $newUser['name'],
@@ -597,7 +568,6 @@ class VoucherController extends CentralController
 
         $totalBytes = $totalBytesIn + $totalBytesOut;
 
-        // Update session values
         session()->put('total_bytes_in', $totalBytesIn);
         session()->put('total_bytes_out', $totalBytesOut);
 
