@@ -99,14 +99,14 @@
                 }
             }
         },
-        "/register": {
+        "/regis": {
             "post": {
                 "tags": [
                     "Authentication"
                 ],
                 "summary": "Registrasi Pengguna Baru",
                 "description": "Endpoint untuk registrasi pengguna baru dan membuat tenant.",
-                "operationId": "0903f2e0df1a8857bee538fc055417f0",
+                "operationId": "1aae2676a70840f73a78c9445ea7a838",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -211,14 +211,14 @@
                 ]
             }
         },
-        "/users": {
+        "/Email": {
             "get": {
                 "tags": [
                     "User"
                 ],
                 "summary": "Ambil semua data user",
                 "description": "Mengambil semua data user dari database pusat.",
-                "operationId": "f846ca630c570f86273e9ada4c12f654",
+                "operationId": "61b0c70cd13349d4dee1d87c93884c13",
                 "parameters": [
                     {
                         "$ref": "#/components/parameters/X-Tenant-ID"
@@ -259,19 +259,14 @@
                 ]
             }
         },
-        "/user-by-token": {
+        "/mikrotik/get-profile-user": {
             "get": {
                 "tags": [
                     "Authentication"
                 ],
                 "summary": "Ambil data user berdasarkan token",
                 "description": "Mengambil data user dan tenant menggunakan bearer token.",
-                "operationId": "30fc09ab04796853935f7e4f15885ce6",
-                "parameters": [
-                    {
-                        "$ref": "#/components/parameters/X-Tenant-ID"
-                    }
-                ],
+                "operationId": "466e4e858dcd095100de1544fe652133",
                 "responses": {
                     "200": {
                         "description": "Berhasil mendapatkan data user",
@@ -299,6 +294,391 @@
                     },
                     "404": {
                         "description": "User atau tenant tidak ditemukan"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik-config": {
+            "get": {
+                "tags": [
+                    "Mikrotik Config"
+                ],
+                "summary": "Menampilkan semua konfigurasi Mikrotik",
+                "operationId": "de595757cf3fe9ae5490bdaa828080f3",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Daftar konfigurasi Mikrotik",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "id": {
+                                                "type": "integer",
+                                                "example": 1
+                                            },
+                                            "host": {
+                                                "type": "string",
+                                                "example": "192.168.88.1"
+                                            },
+                                            "user": {
+                                                "type": "string",
+                                                "example": "admin"
+                                            },
+                                            "pass": {
+                                                "type": "string",
+                                                "example": "password123"
+                                            },
+                                            "port": {
+                                                "type": "integer",
+                                                "example": 8728
+                                            },
+                                            "created_at": {
+                                                "type": "string",
+                                                "example": "2025-09-14T12:00:00Z"
+                                            },
+                                            "updated_at": {
+                                                "type": "string",
+                                                "example": "2025-09-14T12:00:00Z"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Mikrotik Config"
+                ],
+                "summary": "Membuat konfigurasi Mikrotik baru",
+                "operationId": "e3954e4705c4fc6ac3726c514fc189fa",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "host",
+                                    "user",
+                                    "pass",
+                                    "port"
+                                ],
+                                "properties": {
+                                    "host": {
+                                        "type": "string",
+                                        "example": "192.168.88.1"
+                                    },
+                                    "user": {
+                                        "type": "string",
+                                        "example": "admin"
+                                    },
+                                    "pass": {
+                                        "type": "string",
+                                        "example": "password123"
+                                    },
+                                    "port": {
+                                        "type": "integer",
+                                        "example": 8728
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Konfigurasi berhasil dibuat",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Konfigurasi berhasil ditambahkan!"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "host": {
+                                                    "type": "string",
+                                                    "example": "192.168.88.1"
+                                                },
+                                                "user": {
+                                                    "type": "string",
+                                                    "example": "admin"
+                                                },
+                                                "pass": {
+                                                    "type": "string",
+                                                    "example": "password123"
+                                                },
+                                                "port": {
+                                                    "type": "integer",
+                                                    "example": 8728
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "script_result": {
+                                            "description": "Hasil eksekusi script Mikrotik",
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik-config/{id}": {
+            "get": {
+                "tags": [
+                    "Mikrotik Config"
+                ],
+                "summary": "Menampilkan detail konfigurasi Mikrotik berdasarkan ID",
+                "operationId": "09550d787ae83d9c7dd95a50c1818b78",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID konfigurasi Mikrotik",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Detail konfigurasi Mikrotik",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer",
+                                            "example": 1
+                                        },
+                                        "host": {
+                                            "type": "string",
+                                            "example": "192.168.88.1"
+                                        },
+                                        "user": {
+                                            "type": "string",
+                                            "example": "admin"
+                                        },
+                                        "pass": {
+                                            "type": "string",
+                                            "example": "password123"
+                                        },
+                                        "port": {
+                                            "type": "integer",
+                                            "example": 8728
+                                        },
+                                        "created_at": {
+                                            "type": "string",
+                                            "example": "2025-09-14T12:00:00Z"
+                                        },
+                                        "updated_at": {
+                                            "type": "string",
+                                            "example": "2025-09-14T12:00:00Z"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Konfigurasi tidak ditemukan"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "post": {
+                "tags": [
+                    "Mikrotik Config"
+                ],
+                "summary": "Update konfigurasi Mikrotik",
+                "operationId": "62fc1f87f801be2c256504ca6ca8a8bf",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID konfigurasi Mikrotik",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "host": {
+                                        "type": "string",
+                                        "example": "192.168.88.1"
+                                    },
+                                    "user": {
+                                        "type": "string",
+                                        "example": "admin"
+                                    },
+                                    "pass": {
+                                        "type": "string",
+                                        "example": "password123"
+                                    },
+                                    "port": {
+                                        "type": "integer",
+                                        "example": 8728
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Konfigurasi berhasil diperbarui",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Konfigurasi berhasil diperbarui!"
+                                        },
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 1
+                                                },
+                                                "host": {
+                                                    "type": "string",
+                                                    "example": "192.168.88.1"
+                                                },
+                                                "user": {
+                                                    "type": "string",
+                                                    "example": "admin"
+                                                },
+                                                "pass": {
+                                                    "type": "string",
+                                                    "example": "password123"
+                                                },
+                                                "port": {
+                                                    "type": "integer",
+                                                    "example": 8728
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Konfigurasi tidak ditemukan"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Mikrotik Config"
+                ],
+                "summary": "Hapus konfigurasi Mikrotik",
+                "operationId": "0507518edb2bfcf8b98a64c1836cdddd",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID konfigurasi Mikrotik",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Konfigurasi berhasil dihapus",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Konfigurasi berhasil dihapus!"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Konfigurasi tidak ditemukan"
                     }
                 },
                 "security": [
@@ -561,6 +941,400 @@
                     },
                     "404": {
                         "description": "Profile not found"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/get-user-micasa": {
+            "get": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Get daftar semua user Micasa",
+                "operationId": "4f83206f5a7110e7815bc042becb79a5",
+                "responses": {
+                    "200": {
+                        "description": "Daftar user Micasa",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "users": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "username": {
+                                                        "type": "string",
+                                                        "example": "08123456789"
+                                                    },
+                                                    "profile": {
+                                                        "type": "string",
+                                                        "example": "default"
+                                                    },
+                                                    "uptime": {
+                                                        "type": "string",
+                                                        "example": "1h23m"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
+        },
+        "/mikrotik/get-active-micasa": {
+            "get": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Get daftar active user Micasa",
+                "operationId": "c10801aaea0a4e7ce373bd67bb478f17",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Daftar active user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "total_active_users": {
+                                            "type": "integer",
+                                            "example": 5
+                                        },
+                                        "active_users": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "user": {
+                                                        "type": "string",
+                                                        "example": "08123456789"
+                                                    },
+                                                    "bytes-in": {
+                                                        "type": "integer",
+                                                        "example": 2048
+                                                    },
+                                                    "bytes-out": {
+                                                        "type": "integer",
+                                                        "example": 4096
+                                                    },
+                                                    "uptime": {
+                                                        "type": "string",
+                                                        "example": "2h15m30s"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/hotspot-micasa/{no_hp}": {
+            "post": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Edit hotspot Micasa tanpa login",
+                "operationId": "8d64345c3f04f4076adf5ae5cb58496d",
+                "parameters": [
+                    {
+                        "name": "no_hp",
+                        "in": "path",
+                        "description": "Nomor HP user hotspot",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "password": {
+                                        "type": "string",
+                                        "example": "123456"
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "default"
+                                    },
+                                    "comment": {
+                                        "type": "string",
+                                        "example": "User reguler hotspot"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Berhasil edit hotspot",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Hotspot berhasil diperbarui."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Input tidak valid"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
+        },
+        "/mikrotik/login-micasa": {
+            "post": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Login user hotspot Micasa",
+                "operationId": "e69ced15dd5b26670d34f46cbaf6da6a",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "username": {
+                                        "type": "string",
+                                        "example": "08123456789"
+                                    },
+                                    "password": {
+                                        "type": "string",
+                                        "example": "08123456789"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Login berhasil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Selamat anda berhasil login"
+                                        },
+                                        "profile": {
+                                            "type": "string",
+                                            "example": "default"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Username atau password salah"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
+        },
+        "/mikrotik/edit-admin-micasa/{no_hp}": {
+            "post": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Edit data admin Micasa",
+                "operationId": "8d59d1a4858043ee6ed88729b778cc2b",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "no_hp",
+                        "in": "path",
+                        "description": "Nomor HP sebagai username user hotspot",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "08123456789"
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "default"
+                                    },
+                                    "comment": {
+                                        "type": "string",
+                                        "example": "Admin hotspot Micasa"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Berhasil update user",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "User berhasil diperbarui."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "User tidak ditemukan"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/delete-mac-cookie": {
+            "delete": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Hapus semua MAC cookies pada Micasa",
+                "operationId": "9293bfb59c43afca7dfba10d36312977",
+                "responses": {
+                    "200": {
+                        "description": "Berhasil hapus MAC cookies",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Semua MAC cookies berhasil dihapus."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
+        },
+        "/delete-active-user-by-username/{id}": {
+            "delete": {
+                "tags": [
+                    "Micasa"
+                ],
+                "summary": "Hapus active user Micasa berdasarkan ID",
+                "operationId": "512d8c0da0ac5d3e7245fb16f1ae1cb2",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "description": "ID dari active user yang ingin dihapus",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User berhasil dihapus",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Active user has been removed."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
                     }
                 },
                 "security": [
@@ -1579,6 +2353,484 @@
                     }
                 }
             }
+        },
+        "/mikrotik/list-akun": {
+            "get": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Ambil daftar semua akun hotspot",
+                "operationId": "9695398825915ae64fa838241ec7db33",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Daftar akun hotspot",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "username": {
+                                                "type": "string",
+                                                "example": "ABC12345"
+                                            },
+                                            "password": {
+                                                "type": "string",
+                                                "example": "ABC12345"
+                                            },
+                                            "bytes_in": {
+                                                "type": "integer",
+                                                "example": 10240
+                                            },
+                                            "bytes_out": {
+                                                "type": "integer",
+                                                "example": 20480
+                                            },
+                                            "comment": {
+                                                "type": "string",
+                                                "example": "status: active, expiry: 2025-09-15 18:00:00"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/list-voucher": {
+            "get": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Ambil daftar semua voucher",
+                "operationId": "756e488420cf58fe3715de31b92907f9",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Daftar voucher",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "name": {
+                                                "type": "string",
+                                                "example": "ABC12345"
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "example": "Inactive"
+                                            },
+                                            "profile": {
+                                                "type": "string",
+                                                "example": "Standard"
+                                            },
+                                            "waktu": {
+                                                "type": "integer",
+                                                "example": 2
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/mikrotik/update-status": {
+            "post": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Perbarui komentar dan waktu kadaluarsa pengguna hotspot",
+                "operationId": "8d9bd23d51db0ca29f773ba743e42d63",
+                "responses": {
+                    "200": {
+                        "description": "Status voucher berhasil diperbarui",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Komentar dan waktu kadaluarsa semua pengguna yang sesuai berhasil diperbarui, dan status voucher diperbarui menjadi sudah digunakan."
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
+        },
+        "/mikrotik/update-data": {
+            "post": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Update status voucher berdasarkan data hotspot",
+                "operationId": "7dc65b56ef1c043a058b85bd00566958",
+                "responses": {
+                    "200": {
+                        "description": "Data voucher berhasil diperbarui",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "properties": {
+                                            "username": {
+                                                "type": "string",
+                                                "example": "ABC12345"
+                                            },
+                                            "status": {
+                                                "type": "string",
+                                                "example": "Inactive"
+                                            },
+                                            "profile": {
+                                                "type": "string",
+                                                "example": "Standard"
+                                            }
+                                        },
+                                        "type": "object"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
+        },
+        "/mikrotik/add-hotspot-login-Annual": {
+            "post": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Tambah voucher hotspot baru",
+                "operationId": "30657beced7f08e03155b5f20c3c7bc1",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "voucher_hours": {
+                                        "type": "integer",
+                                        "example": 2
+                                    },
+                                    "voucher_count": {
+                                        "type": "integer",
+                                        "example": 5
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "Standard"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Voucher berhasil dibuat",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Voucher berhasil dibuat."
+                                        },
+                                        "generated_vouchers": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "username": {
+                                                        "type": "string",
+                                                        "example": "ABC12345"
+                                                    },
+                                                    "password": {
+                                                        "type": "string",
+                                                        "example": "ABC12345"
+                                                    },
+                                                    "link_login": {
+                                                        "type": "string",
+                                                        "example": "https://hotspot.awh.co.id/login?username=ABC12345&password=ABC12345"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Input tidak valid"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/Check-voucher": {
+            "post": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Check voucher validity",
+                "operationId": "de66f64ded1afa9d79a57096955b47d5",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "voucher_code"
+                                ],
+                                "properties": {
+                                    "voucher_code": {
+                                        "type": "string",
+                                        "example": "ABC123"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Voucher is valid",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "example": "success"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Voucher is valid"
+                                        },
+                                        "hotspot_users": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "username": {
+                                                        "type": "string",
+                                                        "example": "user123"
+                                                    },
+                                                    "status": {
+                                                        "type": "string",
+                                                        "example": "active"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid voucher"
+                    }
+                }
+            }
+        },
+        "/mikrotik/add-Multiple-user": {
+            "post": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Tambah banyak user hotspot berdasarkan lantai dan jumlah kamar",
+                "operationId": "90169f0b0db04af6527974ddacbfb636",
+                "parameters": [
+                    {
+                        "$ref": "#/components/parameters/X-Tenant-ID"
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "lantai": {
+                                        "type": "integer",
+                                        "example": 2
+                                    },
+                                    "jumlah_kamar": {
+                                        "type": "integer",
+                                        "example": 10
+                                    },
+                                    "profile": {
+                                        "type": "string",
+                                        "example": "Standard"
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "User berhasil ditambahkan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Voucher berhasil dibuat."
+                                        },
+                                        "generated_vouchers": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "username": {
+                                                        "type": "string",
+                                                        "example": "kamar201"
+                                                    },
+                                                    "password": {
+                                                        "type": "string",
+                                                        "example": "kamar201"
+                                                    },
+                                                    "link_login": {
+                                                        "type": "string",
+                                                        "example": "https://hotspot.awh.co.id/login?username=kamar201&password=kamar201"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Input tidak valid"
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                },
+                "security": [
+                    {
+                        "bearerAuth": []
+                    }
+                ]
+            }
+        },
+        "/delete-voucher-all-tenant": {
+            "post": {
+                "tags": [
+                    "Voucher"
+                ],
+                "summary": "Hapus semua voucher kadaluarsa dan perbarui data semua tenant",
+                "operationId": "914fe08196a6bbbcca0b66da6c6ef216",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "properties": {
+                                    "tenant_id": {
+                                        "description": "Opsional. Jika diisi, hanya akan memproses tenant tersebut.",
+                                        "type": "integer",
+                                        "example": 1
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Berhasil memperbarui dan menghapus data hotspot",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Successfully updated and deleted hotspot users."
+                                        },
+                                        "processed_tenant_id": {
+                                            "type": "string",
+                                            "example": "all"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Kesalahan server"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -1613,8 +2865,16 @@
             "description": "User"
         },
         {
+            "name": "Mikrotik Config",
+            "description": "Mikrotik Config"
+        },
+        {
             "name": "Hotspot Profile",
             "description": "Hotspot Profile"
+        },
+        {
+            "name": "Micasa",
+            "description": "Micasa"
         },
         {
             "name": "Hotspot",
@@ -1631,6 +2891,10 @@
         {
             "name": "Bandwidth Manager",
             "description": "Bandwidth Manager"
+        },
+        {
+            "name": "Voucher",
+            "description": "Voucher"
         }
     ]
 }

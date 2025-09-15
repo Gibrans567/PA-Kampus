@@ -22,7 +22,10 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::post('/mikrotik/update-data', [VoucherController::class, 'UpdateData']);
-Route::post('/mikrotik/update-status', [VoucherController::class, 'updateAllHotspotUsersByPhoneNumber']);
+Route::post('/mikrotik/update-status', [VoucherController::class, 'updateAllHotspotUsersByName']);
+Route::post('/Check-voucher', [VoucherController::class, 'CheckVoucher']);
+Route::post('/delete-voucher-all-tenant', [VoucherController::class, 'DeleteAlltenant']);
+
 
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/regis', [AuthController::class, 'register']);
@@ -87,7 +90,6 @@ Route::middleware(['auth:sanctum', 'tenant','role:admin,pegawai'])->group(functi
     Route::get('/mikrotik/get-data-all-profile', [ByteController::class, 'getHotspotProfile']);
     Route::post('/mikrotik/Update-byte-log', [ByteController::class, 'logApiUsageBytes']);
     Route::get('/mikrotik/get-data-users', [ByteController::class, 'getHotspotUsers']);
-    Route::post('/mikrotik/switch', [CentralController::class, 'switchConfig']);
     Route::delete('/mikrotik/deleteExpiredHotspotUsersByPhone/{no_hp}', [ByteController::class, 'deleteHotspotUserByPhoneNumber']);
 
     Route::get('/mikrotik/get-netwatch', [FailOverController::class, 'getNetwatch']);
@@ -128,7 +130,5 @@ Route::post('/configure-masquarade', [OpenVPNController::class, 'addNatMasquerad
 
 Route::post('/fixed-masquarade', [ScriptController::class, 'fixNatInterfaceWithExtraction']);
 
-Route::post('/Check-voucher', [VoucherController::class, 'LoginVoucher']);
-Route::post('/delete-voucher-all-tenant', [VoucherController::class, 'DeleteAlltenant']);
 
 

@@ -10,6 +10,7 @@ class MicasaController extends CentralController
 {
     protected function getClientMicasa()
     {
+        //Konfigurasi yang didapat masih manual dengan cara mengambil nya dari Mikrotik CHR
         $config = [
             'host' => '45.149.93.122',
             'user' => 'admin',
@@ -20,9 +21,182 @@ class MicasaController extends CentralController
         return new Client($config);
     }
 
+        /**
+ * @OA\Get(
+ *     path="/mikrotik/get-user-micasa",
+ *     summary="Get daftar semua user Micasa",
+ *     tags={"Micasa"},
+ *     @OA\Response(
+ *         response=200,
+ *         description="Daftar user Micasa",
+ *         @OA\JsonContent(
+ *             @OA\Property(
+ *                 property="users",
+ *                 type="array",
+ *                 @OA\Items(
+ *                     @OA\Property(property="username", type="string", example="08123456789"),
+ *                     @OA\Property(property="profile", type="string", example="default"),
+ *                     @OA\Property(property="uptime", type="string", example="1h23m")
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function getUserMicasa()
+{
+    try {
+        $client = $this->getClientMicasa();
+
+        $userQuery = new Query('/ip/hotspot/user/print');
+        $users = $client->query($userQuery)->read();
+
+        $activeQuery = new Query('/ip/hotspot/active/print');
+        $activeUsers = $client->query($activeQuery)->read();
+
+        $activeUsersMap = [];
+        foreach ($activeUsers as $activeUser) {
+            if (isset($activeUser['user'])) {
+                $username = $activeUser['user'];
+                $activeUsersMap[$username] = $activeUser;
+            }
+        }
+
+        $modifiedUsers = array_map(function ($user) use ($activeUsersMap) {
+            $newUser = [];
+            foreach ($user as $key => $value) {
+                $newKey = str_replace('.id', 'id', $key);
+                $newUser[$newKey] = $value;
+            }
+
+            $newUser['password'] = isset($user['password']) ? $user['password'] : '';
+
+            if (isset($user['name']) && isset($activeUsersMap[$user['name']])) {
+                $activeUser = $activeUsersMap[$user['name']];
+                $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
+                $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
+                $newUser['is_active'] = true;
+            } else {
+                $newUser['bytes-in'] = 0;
+                $newUser['bytes-out'] = 0;
+                $newUser['is_active'] = false;
+            }
+
+            return $newUser;
+        }, $users);
+
+        return response()->json([
+            'total_user' => count($modifiedUsers),
+            'users' => $modifiedUsers,
+            'active_users' => count($activeUsers)
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
+
+      /**
+ * @OA\Get(
+ *     path="/mikrotik/get-active-micasa",
+ *     summary="Get daftar active user Micasa",
+ *     tags={"Micasa"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Daftar active user",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="total_active_users", type="integer", example=5),
+ *             @OA\Property(
+ *                 property="active_users",
+ *                 type="array",
+ *                 @OA\Items(
+ *                     @OA\Property(property="user", type="string", example="08123456789"),
+ *                     @OA\Property(property="bytes-in", type="integer", example=2048),
+ *                     @OA\Property(property="bytes-out", type="integer", example=4096),
+ *                     @OA\Property(property="uptime", type="string", example="2h15m30s")
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function getActiveUsersMicasa()
+{
+    try {
+        $client = $this->getClientLogin();
+
+        $activeQuery = new Query('/ip/hotspot/active/print');
+        $activeUsers = $client->query($activeQuery)->read();
+
+        $modifiedActiveUsers = array_map(function ($activeUser) {
+            $newUser = [];
+            foreach ($activeUser as $key => $value) {
+                $newKey = str_replace('.id', 'id', $key);
+                $newUser[$newKey] = $value;
+            }
+
+            $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
+            $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
+            $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
+            $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
+            $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
+            $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
+            $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
+
+            return $newUser;
+        }, $activeUsers);
+
+        usort($modifiedActiveUsers, function ($a, $b) {
+            return strcmp($a['user'], $b['user']);
+        });
+
+        return response()->json([
+            'total_active_users' => count($modifiedActiveUsers),
+            'active_users' => $modifiedActiveUsers
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
+
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/hotspot-micasa/{no_hp}",
+ *     summary="Edit hotspot Micasa tanpa login",
+ *     tags={"Micasa"},
+ *     @OA\Parameter(
+ *         name="no_hp",
+ *         in="path",
+ *         required=true,
+ *         @OA\Schema(type="string"),
+ *         description="Nomor HP user hotspot"
+ *     ),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="password", type="string", example="123456"),
+ *             @OA\Property(property="profile", type="string", example="default"),
+ *             @OA\Property(property="comment", type="string", example="User reguler hotspot")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Berhasil edit hotspot",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Hotspot berhasil diperbarui.")
+ *         )
+ *     ),
+ *     @OA\Response(response=400, description="Input tidak valid"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function EditMicasa(Request $request, $no_hp)
 {
-    // Validasi input
     $request->validate([
         'name' => 'sometimes|required|string|max:255',
         'profile' => 'nullable|string|max:50',
@@ -40,11 +214,8 @@ class MicasaController extends CentralController
         }
 
         $userId = $existingUsers[0]['.id'];
-        $password = $existingUsers[0]['password']; // Mengambil password yang ada di data pengguna
-
-        // Cek jika name dan password sama dengan no_hp
+        $password = $existingUsers[0]['password'];
         if ($request->has('name')) {
-            // Validasi bahwa username dan password lama masih sama (belum pernah diubah)
             if ($no_hp !== $existingUsers[0]['name'] || $no_hp !== $password) {
                 return response()->json([
                     'status' => 'error',
@@ -54,7 +225,6 @@ class MicasaController extends CentralController
         }
 
 
-        // Melakukan update pada user jika pengecekan valid
         $updateUserQuery = (new Query('/ip/hotspot/user/set'))
             ->equal('.id', $userId);
 
@@ -72,12 +242,11 @@ class MicasaController extends CentralController
 
         $client->query($updateUserQuery)->read();
 
-        // Update database jika username dan password valid
         if ($request->has('name')) {
             DB::table('voucher_lists')->where('name', $no_hp)
                     ->update([
-                        'name' => $request->input('name'),    // Update name in the database
-                        'password' => $request->input('name'),  // Update password in the database
+                        'name' => $request->input('name'),
+                        'password' => $request->input('name'),
                     ]);
         }
 
@@ -92,75 +261,39 @@ class MicasaController extends CentralController
             'message' => 'Terjadi kesalahan: ' . $e->getMessage()
         ], 500);
     }
-}
-    public function getUserMicasa()
-{
-    try {
-        // Mendapatkan koneksi client Mikrotik
-        $client = $this->getClientMicasa();
-
-        // Mengambil data pengguna hotspot
-        $userQuery = new Query('/ip/hotspot/user/print');
-        $users = $client->query($userQuery)->read();
-
-        // Mengambil data pengguna aktif
-        $activeQuery = new Query('/ip/hotspot/active/print');
-        $activeUsers = $client->query($activeQuery)->read();
-
-        // Membuat map pengguna aktif berdasarkan username
-        $activeUsersMap = [];
-        foreach ($activeUsers as $activeUser) {
-            if (isset($activeUser['user'])) {
-                $username = $activeUser['user'];
-                $activeUsersMap[$username] = $activeUser;
-            }
-        }
-
-        // Modifikasi struktur data pengguna
-        $modifiedUsers = array_map(function ($user) use ($activeUsersMap) {
-            $newUser = [];
-            foreach ($user as $key => $value) {
-                $newKey = str_replace('.id', 'id', $key);
-                $newUser[$newKey] = $value;
-            }
-
-            // Memastikan password disertakan
-            $newUser['password'] = isset($user['password']) ? $user['password'] : '';
-
-            // Menambahkan informasi bytes-in dan bytes-out jika pengguna aktif
-            if (isset($user['name']) && isset($activeUsersMap[$user['name']])) {
-                $activeUser = $activeUsersMap[$user['name']];
-                $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
-                $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
-                $newUser['is_active'] = true;
-            } else {
-                $newUser['bytes-in'] = 0;
-                $newUser['bytes-out'] = 0;
-                $newUser['is_active'] = false;
-            }
-
-            return $newUser;
-        }, $users);
-
-        // Mengembalikan response dalam format JSON
-        return response()->json([
-            'total_user' => count($modifiedUsers),
-            'users' => $modifiedUsers,
-            'active_users' => count($activeUsers)
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
     }
 
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/login-micasa",
+ *     summary="Login user hotspot Micasa",
+ *     tags={"Micasa"},
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="username", type="string", example="08123456789"),
+ *             @OA\Property(property="password", type="string", example="08123456789")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Login berhasil",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="status", type="string", example="success"),
+ *             @OA\Property(property="message", type="string", example="Selamat anda berhasil login"),
+ *             @OA\Property(property="profile", type="string", example="default")
+ *         )
+ *     ),
+ *     @OA\Response(response=401, description="Username atau password salah"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function loginMicasa(Request $request)
 {
     try {
         $username = $request->json('username');
         $password = $request->json('password');
 
-        // Validasi input
         if (empty($username) || empty($password)) {
             return response()->json([
                 'status' => 'error',
@@ -168,23 +301,18 @@ class MicasaController extends CentralController
             ], 400);
         }
 
-        // Mendapatkan koneksi client Mikrotik
         $client = $this->getClientMicasa();
 
-        // Mencari user dengan username yang dimasukkan
         $userQuery = new Query('/ip/hotspot/user/print');
         $users = $client->query($userQuery)->read();
 
-        // Cari user yang cocok dengan username yang diinput
         $userFound = false;
         $passwordMatch = false;
         $profileUser = 'default';
 
         foreach ($users as $user) {
-            // Pastikan kita mengakses 'name' dan 'password' dengan cara yang sama seperti di getUserMicasa
             if (isset($user['name']) && $user['name'] === $username) {
                 $userFound = true;
-                // Akses password langsung dari data user seperti di getUserMicasa
                 if (isset($user['password']) && $user['password'] === $password) {
                     $passwordMatch = true;
                     $profileUser = isset($user['profile']) ? $user['profile'] : 'default';
@@ -193,26 +321,22 @@ class MicasaController extends CentralController
             }
         }
 
-        // Debug info (opsional, hapus di production)
         $debugInfo = [
             'user_found' => $userFound,
             'password_match' => $passwordMatch
         ];
 
-        // Periksa apakah user ditemukan dan password cocok
         if ($userFound && $passwordMatch) {
-            // Login berhasil
             return response()->json([
                 'status' => 'success',
                 'message' => 'Selamat anda berhasil login',
                 'profile' => $profileUser
             ]);
         } else {
-            // Login gagal
             return response()->json([
                 'status' => 'error',
                 'message' => 'Username atau password salah',
-                'debug' => $debugInfo  // Hapus ini di production
+                'debug' => $debugInfo
             ], 401);
         }
     } catch (\Exception $e) {
@@ -223,9 +347,41 @@ class MicasaController extends CentralController
     }
     }
 
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/edit-admin-micasa/{no_hp}",
+ *     summary="Edit data admin Micasa",
+ *     tags={"Micasa"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Parameter(
+ *         name="no_hp",
+ *         in="path",
+ *         required=true,
+ *         @OA\Schema(type="string"),
+ *         description="Nomor HP sebagai username user hotspot"
+ *     ),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="name", type="string", example="08123456789"),
+ *             @OA\Property(property="profile", type="string", example="default"),
+ *             @OA\Property(property="comment", type="string", example="Admin hotspot Micasa")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Berhasil update user",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="User berhasil diperbarui.")
+ *         )
+ *     ),
+ *     @OA\Response(response=404, description="User tidak ditemukan"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function adminEditMicasa(Request $request, $no_hp)
 {
-    // Validasi input
     $request->validate([
         'name' => 'sometimes|required|string|max:255',
         'profile' => 'nullable|string|max:50',
@@ -263,8 +419,8 @@ class MicasaController extends CentralController
 
         // DB::table('voucher_lists')->where('name', $no_hp)
         //         ->update([
-        //             'name' => $request->input( 'name'),    // Update name in the database
-        //             'password' => $request->input( 'name'),  // Update profile in the database
+        //             'name' => $request->input( 'name'),
+        //             'password' => $request->input( 'name'),
         //         ]);
 
         return response()->json(['message' => 'User berhasil diperbarui.'], 200);
@@ -274,17 +430,29 @@ class MicasaController extends CentralController
     }
     }
 
+    /**
+ * @OA\Delete(
+ *     path="/mikrotik/delete-mac-cookie",
+ *     summary="Hapus semua MAC cookies pada Micasa",
+ *     tags={"Micasa"},
+ *     @OA\Response(
+ *         response=200,
+ *         description="Berhasil hapus MAC cookies",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Semua MAC cookies berhasil dihapus.")
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function getActiveUsersAndCleanCookiesMicasa()
 {
     try {
-        // Mendapatkan koneksi client Mikrotik
         $client = $this->getClientMicasa();
 
-        // Mengambil data pengguna aktif
         $activeQuery = new Query('/ip/hotspot/active/print');
         $activeUsers = $client->query($activeQuery)->read();
 
-        // Modifikasi struktur data pengguna aktif
         $modifiedActiveUsers = array_map(function ($activeUser) {
             $newUser = [];
             foreach ($activeUser as $key => $value) {
@@ -292,7 +460,6 @@ class MicasaController extends CentralController
                 $newUser[$newKey] = $value;
             }
 
-            // Pastikan properti penting selalu ada
             $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
             $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
             $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
@@ -304,7 +471,6 @@ class MicasaController extends CentralController
             return $newUser;
         }, $activeUsers);
 
-        // Membuat array dari MAC address pengguna aktif
         $activeMacAddresses = [];
         foreach ($activeUsers as $activeUser) {
             if (isset($activeUser['mac-address'])) {
@@ -312,19 +478,16 @@ class MicasaController extends CentralController
             }
         }
 
-        // Mengambil data MAC cookies
         $cookieQuery = new Query('/ip/hotspot/cookie/print');
         $cookies = $client->query($cookieQuery)->read();
 
         $deletedCookiesCount = 0;
         $remainingCookiesCount = 0;
 
-        // Memeriksa setiap cookie
         foreach ($cookies as $cookie) {
             if (isset($cookie['mac-address'])) {
                 $macAddress = $cookie['mac-address'];
 
-                // Jika MAC address tidak ada di daftar pengguna aktif, hapus cookie
                 if (!in_array($macAddress, $activeMacAddresses)) {
                     if (isset($cookie['.id'])) {
                         $removeQuery = new Query('/ip/hotspot/cookie/remove');
@@ -340,11 +503,9 @@ class MicasaController extends CentralController
 
         // ========== BAGIAN BARU: MEMBERSIHKAN HOSTS ========== //
 
-        // Mengambil data DHCP server leases
         $leasesQuery = new Query('/ip/dhcp-server/lease/print');
         $leases = $client->query($leasesQuery)->read();
 
-        // Membuat array dari MAC address yang ada di DHCP leases
         $leasesMacAddresses = [];
         foreach ($leases as $lease) {
             if (isset($lease['mac-address']) && !empty($lease['mac-address'])) {
@@ -352,7 +513,6 @@ class MicasaController extends CentralController
             }
         }
 
-        // Mengambil data hosts
         $hostsQuery = new Query('/ip/hotspot/host/print');
         $hosts = $client->query($hostsQuery)->read();
 
@@ -361,32 +521,27 @@ class MicasaController extends CentralController
         $deletedIdleHostsCount = 0;
         $deletedNotInDhcpCount = 0;
 
-        // Waktu batas untuk idle timeout (5 hari dalam detik)
-        $fiveDaysInSeconds = 5 * 24 * 60 * 60; // 432000 detik
+        $fiveDaysInSeconds = 5 * 24 * 60 * 60;
 
-        // Memeriksa setiap host
         foreach ($hosts as $host) {
             if (isset($host['mac-address'])) {
                 $hostMacAddress = $host['mac-address'];
                 $shouldDelete = false;
                 $deleteReason = '';
 
-                // Cek 1: Jika MAC address host tidak ada di daftar DHCP leases
                 if (!in_array($hostMacAddress, $leasesMacAddresses)) {
                     $shouldDelete = true;
                     $deleteReason = 'not_in_dhcp_leases';
                     $deletedNotInDhcpCount++;
                 }
 
-                // Cek 2: Jika idle time lebih dari 5 hari
                 if (isset($host['idle-time']) && !empty($host['idle-time'])) {
                     $idleTime = $host['idle-time'];
 
-                    // Parse idle time dari format RouterOS
                     $idleSeconds = $this->parseRouterOSTime($idleTime);
 
                     if ($idleSeconds > $fiveDaysInSeconds) {
-                        if (!$shouldDelete) { // Jika belum ditandai untuk dihapus karena alasan lain
+                        if (!$shouldDelete) {
                             $deletedIdleHostsCount++;
                         }
                         $shouldDelete = true;
@@ -394,7 +549,6 @@ class MicasaController extends CentralController
                     }
                 }
 
-                // Hapus host jika memenuhi kriteria
                 if ($shouldDelete && isset($host['.id'])) {
                     $removeHostQuery = new Query('/ip/hotspot/host/remove');
                     $removeHostQuery->equal('.id', $host['.id']);
@@ -406,7 +560,6 @@ class MicasaController extends CentralController
             }
         }
 
-        // Mengembalikan response dalam format JSON
         return response()->json([
             'status' => 'success',
             'total_active_users' => count($modifiedActiveUsers),
@@ -435,13 +588,12 @@ class MicasaController extends CentralController
     {
         $seconds = 0;
 
-        // Pattern untuk menangkap weeks, days, hours, minutes, seconds
         $patterns = [
-            '/(\d+)w/' => 604800, // 1 week = 604800 seconds
-            '/(\d+)d/' => 86400,  // 1 day = 86400 seconds
-            '/(\d+)h/' => 3600,   // 1 hour = 3600 seconds
-            '/(\d+)m/' => 60,     // 1 minute = 60 seconds
-            '/(\d+)s/' => 1       // 1 second = 1 second
+            '/(\d+)w/' => 604800,
+            '/(\d+)d/' => 86400,
+            '/(\d+)h/' => 3600,
+            '/(\d+)m/' => 60,
+            '/(\d+)s/' => 1
         ];
 
         foreach ($patterns as $pattern => $multiplier) {
@@ -453,59 +605,35 @@ class MicasaController extends CentralController
         return $seconds;
     }
 
-    public function getActiveUsersMicasa()
-{
-    try {
-        // Mendapatkan koneksi client Mikrotik
-        $client = $this->getClientLogin();
-
-        // Mengambil data pengguna aktif saja
-        $activeQuery = new Query('/ip/hotspot/active/print');
-        $activeUsers = $client->query($activeQuery)->read();
-
-        // Modifikasi struktur data pengguna aktif
-        $modifiedActiveUsers = array_map(function ($activeUser) {
-            $newUser = [];
-            foreach ($activeUser as $key => $value) {
-                $newKey = str_replace('.id', 'id', $key);
-                $newUser[$newKey] = $value;
-            }
-
-            // Pastikan properti penting selalu ada
-            $newUser['bytes-in'] = isset($activeUser['bytes-in']) ? (int)$activeUser['bytes-in'] : 0;
-            $newUser['bytes-out'] = isset($activeUser['bytes-out']) ? (int)$activeUser['bytes-out'] : 0;
-            $newUser['uptime'] = isset($activeUser['uptime']) ? $activeUser['uptime'] : '';
-            $newUser['user'] = isset($activeUser['user']) ? $activeUser['user'] : '';
-            $newUser['address'] = isset($activeUser['address']) ? $activeUser['address'] : '';
-            $newUser['mac-address'] = isset($activeUser['mac-address']) ? $activeUser['mac-address'] : '';
-            $newUser['login-by'] = isset($activeUser['login-by']) ? $activeUser['login-by'] : '';
-
-            return $newUser;
-        }, $activeUsers);
-
-        // Urutkan berdasarkan field 'user' agar user yang sama berdekatan
-        usort($modifiedActiveUsers, function ($a, $b) {
-            return strcmp($a['user'], $b['user']);
-        });
-
-        // Mengembalikan response dalam format JSON
-        return response()->json([
-            'total_active_users' => count($modifiedActiveUsers),
-            'active_users' => $modifiedActiveUsers
-        ]);
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => $e->getMessage()], 500);
-    }
-    }
-
+    /**
+ * @OA\Delete(
+ *     path="/delete-active-user-by-username/{id}",
+ *     summary="Hapus active user Micasa berdasarkan ID",
+ *     tags={"Micasa"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Parameter(
+ *         name="id",
+ *         in="path",
+ *         required=true,
+ *         @OA\Schema(type="string"),
+ *         description="ID dari active user yang ingin dihapus"
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="User berhasil dihapus",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Active user has been removed.")
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function deleteActiveUserByIdMicasa($id)
 {
     try {
-        // Koneksi ke Mikrotik
         $client = $this->getClientLogin();
 
-        // Jalankan perintah remove berdasarkan .id
         $deleteQuery = new Query('/ip/hotspot/active/remove');
         $deleteQuery->equal('.id', $id);
         $client->query($deleteQuery)->read();
@@ -520,7 +648,5 @@ class MicasaController extends CentralController
         ], 500);
     }
     }
-
-
 
 }

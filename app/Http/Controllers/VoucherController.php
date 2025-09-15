@@ -13,53 +13,102 @@ use RouterOS\Query;
 class VoucherController extends CentralController
 {
 
-    public function deleteExpiredHotspotUsers($mikrotikConfig)
+    /**
+ * @OA\Get(
+ *     path="/mikrotik/list-akun",
+ *     summary="Ambil daftar semua akun hotspot",
+ *     tags={"Voucher"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Daftar akun hotspot",
+ *         @OA\JsonContent(
+ *             type="array",
+ *             @OA\Items(
+ *                 @OA\Property(property="username", type="string", example="ABC12345"),
+ *                 @OA\Property(property="password", type="string", example="ABC12345"),
+ *                 @OA\Property(property="bytes_in", type="integer", example=10240),
+ *                 @OA\Property(property="bytes_out", type="integer", example=20480),
+ *                 @OA\Property(property="comment", type="string", example="status: active, expiry: 2025-09-15 18:00:00")
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function getHotspotUsers($mikrotikConfig)
 {
     try {
         $client = $this->getClientVoucher($mikrotikConfig);
 
-        $getUsersQuery = new Query('/ip/hotspot/user/print');
-        $users = $client->query($getUsersQuery)->read();
+        $hotspotQuery = new Query('/ip/hotspot/user/print');
+        $hotspotData = $client->q($hotspotQuery)->read();
 
-        foreach ($users as $user) {
-            if (isset($user['comment']) && str_contains($user['comment'], 'status: active')) {
-                preg_match('/expiry: ([\d\- :]+)/', $user['comment'], $matches);
-
-                if (!empty($matches[1])) {
-                    $expiryTime = strtotime($matches[1]);
-                    $currentTime = time();
-
-
-                    if ($currentTime > $expiryTime) {
-                        $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
-                        $activeUsers = $client->query($getActiveUsersQuery)->read();
-
-                        foreach ($activeUsers as $activeUser) {
-                            if ($activeUser['user'] === $user['name']) {
-                                $deleteActiveQuery = (new Query('/ip/hotspot/active/remove'))
-                                    ->equal('.id', $activeUser['.id']);
-                                $client->query($deleteActiveQuery)->read();
-                            }
-                        }
-
-                        $deleteUserQuery = (new Query('/ip/hotspot/user/remove'))
-                            ->equal('.id', $user['.id']);
-                        $client->query($deleteUserQuery)->read();
-                    }
-                }
-            }
+        $response = [];
+        foreach ($hotspotData as $user) {
+            $response[] = [
+                'username' => $user['name'] ?? 'Not Available',
+                'password' => $user['password'] ?? 'Not Available',
+                'bytes_in' => $user['bytes-in'] ?? 0,
+                'bytes_out' => $user['bytes-out'] ?? 0,
+                'comment' => $user['comment'] ?? 'Not Available',
+            ];
         }
 
-        return response()->json([
-            'message' => 'Expired users deleted successfully from active sessions and users list.'
-        ]);
+        return response()->json($response, 200);
 
     } catch (\Exception $e) {
-        return response()->json(['message' => $e->getMessage()], 500);
+        return response()->json(['error' => 'Failed to fetch hotspot users: ' . $e->getMessage()], 500);
     }
     }
 
-    public function updateAllHotspotUsersByPhoneNumber($mikrotikConfig)
+    /**
+ * @OA\Get(
+ *     path="/mikrotik/list-voucher",
+ *     summary="Ambil daftar semua voucher",
+ *     tags={"Voucher"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Daftar voucher",
+ *         @OA\JsonContent(
+ *             type="array",
+ *             @OA\Items(
+ *                 @OA\Property(property="name", type="string", example="ABC12345"),
+ *                 @OA\Property(property="status", type="string", example="Inactive"),
+ *                 @OA\Property(property="profile", type="string", example="Standard"),
+ *                 @OA\Property(property="waktu", type="integer", example=2)
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function getVoucherLists()
+    {
+        $vouchers = DB::table('voucher_lists')->get();
+
+        return response()->json($vouchers);
+    }
+
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/update-status",
+ *     summary="Perbarui komentar dan waktu kadaluarsa pengguna hotspot",
+ *     tags={"Voucher"},
+ *     @OA\Response(
+ *         response=200,
+ *         description="Status voucher berhasil diperbarui",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Komentar dan waktu kadaluarsa semua pengguna yang sesuai berhasil diperbarui, dan status voucher diperbarui menjadi sudah digunakan.")
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function updateAllHotspotUsersByName($mikrotikConfig)
 {
     try {
         $client = $this->getClientVoucher($mikrotikConfig);
@@ -125,13 +174,33 @@ class VoucherController extends CentralController
         ]);
 
     } catch (\Exception $e) {
-        Log::error("Error in updateAllHotspotUsersByPhoneNumber: {$e->getMessage()}", [
+        Log::error("Error in updateAllHotspotUsersByName: {$e->getMessage()}", [
             'exception' => $e,
         ]);
         return response()->json(['message' => 'Terjadi kesalahan: ' . $e->getMessage()], 500);
     }
     }
 
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/update-data",
+ *     summary="Update status voucher berdasarkan data hotspot",
+ *     tags={"Voucher"},
+ *     @OA\Response(
+ *         response=200,
+ *         description="Data voucher berhasil diperbarui",
+ *         @OA\JsonContent(
+ *             type="array",
+ *             @OA\Items(
+ *                 @OA\Property(property="username", type="string", example="ABC12345"),
+ *                 @OA\Property(property="status", type="string", example="Inactive"),
+ *                 @OA\Property(property="profile", type="string", example="Standard")
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function UpdateData($mikrotikConfig)
 {
     try {
@@ -188,6 +257,41 @@ class VoucherController extends CentralController
     }
     }
 
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/add-hotspot-login-Annual",
+ *     summary="Tambah voucher hotspot baru",
+ *     tags={"Voucher"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="voucher_hours", type="integer", example=2),
+ *             @OA\Property(property="voucher_count", type="integer", example=5),
+ *             @OA\Property(property="profile", type="string", example="Standard")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Voucher berhasil dibuat",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Voucher berhasil dibuat."),
+ *             @OA\Property(
+ *                 property="generated_vouchers",
+ *                 type="array",
+ *                 @OA\Items(
+ *                     @OA\Property(property="username", type="string", example="ABC12345"),
+ *                     @OA\Property(property="password", type="string", example="ABC12345"),
+ *                     @OA\Property(property="link_login", type="string", example="https://hotspot.awh.co.id/login?username=ABC12345&password=ABC12345")
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=400, description="Input tidak valid"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function AddVoucher(Request $request)
 {
     $request->validate([
@@ -258,33 +362,42 @@ class VoucherController extends CentralController
     }
     }
 
-    public function getHotspotUsers($mikrotikConfig)
-{
-    try {
-        $client = $this->getClientVoucher($mikrotikConfig);
-
-        $hotspotQuery = new Query('/ip/hotspot/user/print');
-        $hotspotData = $client->q($hotspotQuery)->read();
-
-        $response = [];
-        foreach ($hotspotData as $user) {
-            $response[] = [
-                'username' => $user['name'] ?? 'Not Available',
-                'password' => $user['password'] ?? 'Not Available',
-                'bytes_in' => $user['bytes-in'] ?? 0,
-                'bytes_out' => $user['bytes-out'] ?? 0,
-                'comment' => $user['comment'] ?? 'Not Available',
-            ];
-        }
-
-        return response()->json($response, 200);
-
-    } catch (\Exception $e) {
-        return response()->json(['error' => 'Failed to fetch hotspot users: ' . $e->getMessage()], 500);
-    }
-    }
-
-    public function LoginVoucher(Request $request)
+    /**
+ * @OA\Post(
+ *     path="/Check-voucher",
+ *     tags={"Voucher"},
+ *     summary="Check voucher validity",
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             required={"voucher_code"},
+ *             @OA\Property(property="voucher_code", type="string", example="ABC123")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Voucher is valid",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="status", type="string", example="success"),
+ *             @OA\Property(property="message", type="string", example="Voucher is valid"),
+ *             @OA\Property(
+ *                 property="hotspot_users",
+ *                 type="array",
+ *                 @OA\Items(
+ *                     type="object",
+ *                     @OA\Property(property="username", type="string", example="user123"),
+ *                     @OA\Property(property="status", type="string", example="active")
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=400,
+ *         description="Invalid voucher"
+ *     )
+ * )
+ */
+    public function CheckVoucher(Request $request)
 {
     $request->validate([
         'voucher_code' => 'required|string',
@@ -311,7 +424,7 @@ class VoucherController extends CentralController
         return response()->json(['message' => 'Invalid voucher in all tenants'], 400);
     }
 
-    $this->updateAllHotspotUsersByPhoneNumber($mikrotikConfig);
+    $this->updateAllHotspotUsersByName($mikrotikConfig);
     $hotspotUsers = $this->getHotspotUsers($mikrotikConfig);
 
     return response()->json([
@@ -320,37 +433,6 @@ class VoucherController extends CentralController
         'mikrotik_config' => $mikrotikConfig,
         'hotspot_users' => $hotspotUsers
     ]);
-    }
-
-    public function DeleteAlltenant(Request $request)
-    {
-        $tenantId = $request->input('tenant_id');
-
-        $tenants = $tenantId ? Tenant::where('id', $tenantId)->get() : Tenant::all();
-
-        foreach ($tenants as $tenant) {
-            tenancy()->initialize($tenant);
-
-            $mikrotikConfig = DB::table('mikrotik_config')->first();
-            if (!$mikrotikConfig) continue;
-
-            $this->deleteExpiredHotspotUsers($mikrotikConfig);
-            $this->UpdateData($mikrotikConfig);
-            $this->updateAllHotspotUsersByPhoneNumber($mikrotikConfig);
-            $this->logApiUsageBytesAllTenant($mikrotikConfig);
-        }
-
-        return response()->json([
-            'message' => 'Successfully updated and deleted hotspot users.',
-            'processed_tenant_id' => $tenantId ?? 'all'
-        ]);
-    }
-
-    public function getVoucherLists()
-{
-    $vouchers = DB::table('voucher_lists')->get();
-
-    return response()->json($vouchers);
     }
 
     public function setHotspotProfile(Request $request)
@@ -413,6 +495,41 @@ class VoucherController extends CentralController
         }
         }
 
+    /**
+ * @OA\Post(
+ *     path="/mikrotik/add-Multiple-user",
+ *     summary="Tambah banyak user hotspot berdasarkan lantai dan jumlah kamar",
+ *     tags={"Voucher"},
+ *     security={{"bearerAuth":{}}},
+ *     @OA\Parameter(ref="#/components/parameters/X-Tenant-ID"),
+ *     @OA\RequestBody(
+ *         required=true,
+ *         @OA\JsonContent(
+ *             @OA\Property(property="lantai", type="integer", example=2),
+ *             @OA\Property(property="jumlah_kamar", type="integer", example=10),
+ *             @OA\Property(property="profile", type="string", example="Standard")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="User berhasil ditambahkan",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Voucher berhasil dibuat."),
+ *             @OA\Property(
+ *                 property="generated_vouchers",
+ *                 type="array",
+ *                 @OA\Items(
+ *                     @OA\Property(property="username", type="string", example="kamar201"),
+ *                     @OA\Property(property="password", type="string", example="kamar201"),
+ *                     @OA\Property(property="link_login", type="string", example="https://hotspot.awh.co.id/login?username=kamar201&password=kamar201")
+ *                 )
+ *             )
+ *         )
+ *     ),
+ *     @OA\Response(response=400, description="Input tidak valid"),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
     public function adduserBatch(Request $request)
         {
             $request->validate([
@@ -580,6 +697,97 @@ class VoucherController extends CentralController
         ]);
     } catch (\Exception $e) {
         return response()->json(['error' => $e->getMessage()], 500);
+    }
+    }
+
+    /**
+ * @OA\Post(
+ *     path="/delete-voucher-all-tenant",
+ *     summary="Hapus semua voucher kadaluarsa dan perbarui data semua tenant",
+ *     tags={"Voucher"},
+ *     @OA\RequestBody(
+ *         @OA\JsonContent(
+ *             @OA\Property(property="tenant_id", type="integer", example=1, description="Opsional. Jika diisi, hanya akan memproses tenant tersebut.")
+ *         )
+ *     ),
+ *     @OA\Response(
+ *         response=200,
+ *         description="Berhasil memperbarui dan menghapus data hotspot",
+ *         @OA\JsonContent(
+ *             @OA\Property(property="message", type="string", example="Successfully updated and deleted hotspot users."),
+ *             @OA\Property(property="processed_tenant_id", type="string", example="all")
+ *         )
+ *     ),
+ *     @OA\Response(response=500, description="Kesalahan server")
+ * )
+ */
+    public function DeleteAlltenant(Request $request)
+    {
+        $tenantId = $request->input('tenant_id');
+
+        $tenants = $tenantId ? Tenant::where('id', $tenantId)->get() : Tenant::all();
+
+        foreach ($tenants as $tenant) {
+            tenancy()->initialize($tenant);
+
+            $mikrotikConfig = DB::table('mikrotik_config')->first();
+            if (!$mikrotikConfig) continue;
+
+            $this->deleteExpiredHotspotUsers($mikrotikConfig);
+            $this->UpdateData($mikrotikConfig);
+            $this->updateAllHotspotUsersByName($mikrotikConfig);
+            $this->logApiUsageBytesAllTenant($mikrotikConfig);
+        }
+
+        return response()->json([
+            'message' => 'Successfully updated and deleted hotspot users.',
+            'processed_tenant_id' => $tenantId ?? 'all'
+        ]);
+    }
+
+    public function deleteExpiredHotspotUsers($mikrotikConfig)
+{
+    try {
+        $client = $this->getClientVoucher($mikrotikConfig);
+
+        $getUsersQuery = new Query('/ip/hotspot/user/print');
+        $users = $client->query($getUsersQuery)->read();
+
+        foreach ($users as $user) {
+            if (isset($user['comment']) && str_contains($user['comment'], 'status: active')) {
+                preg_match('/expiry: ([\d\- :]+)/', $user['comment'], $matches);
+
+                if (!empty($matches[1])) {
+                    $expiryTime = strtotime($matches[1]);
+                    $currentTime = time();
+
+
+                    if ($currentTime > $expiryTime) {
+                        $getActiveUsersQuery = new Query('/ip/hotspot/active/print');
+                        $activeUsers = $client->query($getActiveUsersQuery)->read();
+
+                        foreach ($activeUsers as $activeUser) {
+                            if ($activeUser['user'] === $user['name']) {
+                                $deleteActiveQuery = (new Query('/ip/hotspot/active/remove'))
+                                    ->equal('.id', $activeUser['.id']);
+                                $client->query($deleteActiveQuery)->read();
+                            }
+                        }
+
+                        $deleteUserQuery = (new Query('/ip/hotspot/user/remove'))
+                            ->equal('.id', $user['.id']);
+                        $client->query($deleteUserQuery)->read();
+                    }
+                }
+            }
+        }
+
+        return response()->json([
+            'message' => 'Expired users deleted successfully from active sessions and users list.'
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json(['message' => $e->getMessage()], 500);
     }
     }
 
